@@ -27,7 +27,7 @@
 
 <script setup>
 import { computed } from 'vue'
-import { gameState, getIslanderPoints, isEliminated } from '../store/game.js'
+import { getIslanderPoints, isEliminated, getPartner } from '../store/game.js'
 
 const props = defineProps({
   islander: { type: Object, required: true },
@@ -39,7 +39,7 @@ const initials = computed(() =>
 )
 const points  = computed(() => getIslanderPoints(props.islander.name))
 const elim    = computed(() => isEliminated(props.islander.name))
-const partner = computed(() => gameState.couples?.[props.islander.name] ?? null)
+const partner = computed(() => getPartner(props.islander.name))
 </script>
 
 <style scoped>

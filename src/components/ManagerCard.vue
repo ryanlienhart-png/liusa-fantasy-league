@@ -32,6 +32,7 @@
 <script setup>
 import { computed } from 'vue'
 import { gameState, getManagerScore } from '../store/game.js'
+import { mgrKey } from '../data/managers.js'
 
 const props = defineProps({
   manager: { type: Object, required: true },
@@ -40,8 +41,8 @@ const props = defineProps({
 const initials = computed(() =>
   props.manager.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
 )
-const picks = computed(() => gameState.managerPicks[props.manager.name] || [])
-const score = computed(() => getManagerScore(props.manager.name))
+const picks = computed(() => gameState.managerPicks[mgrKey(props.manager)] || [])
+const score = computed(() => getManagerScore(mgrKey(props.manager)))
 </script>
 
 <style scoped>

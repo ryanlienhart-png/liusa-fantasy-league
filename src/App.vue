@@ -10,7 +10,7 @@
       <RouterView />
     </main>
     <footer class="site-footer">
-      <p>Villa League 2026 &nbsp;·&nbsp; Hosted by <strong>Sriniana Badix</strong> &nbsp;·&nbsp; you've got a text!!</p>
+      <p>Summer 2026 &nbsp;·&nbsp; Hosted by <strong>Sriniana Badix</strong> &nbsp;·&nbsp; you've got a text!!</p>
     </footer>
   </div>
 </template>

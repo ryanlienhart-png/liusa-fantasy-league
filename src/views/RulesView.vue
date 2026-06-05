@@ -2,7 +2,6 @@
   <div class="rules-page">
     <div class="container">
       <h2 class="page-title">the rules</h2>
-      <p class="page-sub">Villa League 2026 — Hosted by Sriniana Badix</p>
 
       <!-- Draft -->
       <section class="rule-card">

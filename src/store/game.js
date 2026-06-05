@@ -3,24 +3,37 @@ import { db } from '../firebase.js'
 import { doc, onSnapshot, setDoc } from 'firebase/firestore'
 import { allEvents } from '../data/pointEvents.js'
 
-const STATE_DOC = doc(db, 'league', 'gameState')
+const STATE_DOC   = doc(db, 'league', 'gameState')
+const COUPLES_DOC = doc(db, 'league', 'couples')   // isolated so main persist() can never wipe it
 
 function defaultState() {
   return {
-    managerPicks:        {},  // { managerName: [islanderName, ...] }
-    pickBaselines:       {},  // { managerName: { islanderName: pointsAtPickup } }
-    managerBanked:       {},  // { managerName: totalBankedPtsFromDroppedIslanders }
+    managerPicks:        {},
+    pickBaselines:       {},
+    managerBanked:       {},
     islanderEvents:      {},
     eliminated:          [],
     bombshells:          [],
-    couples:             {},  // { islanderName: partnerName } bidirectional
     islanderAdjustments: {},
     managerAdjustments:  {},
   }
 }
 
-export const gameState = reactive(defaultState())
+export const gameState = reactive({ ...defaultState(), couples: [] })
 export const isReady   = ref(false)
+
+// Accepts both old object format { A: B, B: A } and new array format [{ a, b }]
+function normaliseCouples(raw) {
+  if (!raw) return []
+  if (Array.isArray(raw)) return raw
+  const seen = new Set()
+  const arr  = []
+  for (const [a, b] of Object.entries(raw)) {
+    const key = [a, b].sort().join('|')
+    if (!seen.has(key)) { seen.add(key); arr.push({ a, b }) }
+  }
+  return arr
+}
 
 // Deep-clone through JSON to strip Vue Proxy wrappers before sending to Firestore
 function plain(val) {
@@ -35,14 +48,27 @@ function persist() {
     islanderEvents:      gameState.islanderEvents,
     eliminated:          gameState.eliminated,
     bombshells:          gameState.bombshells,
-    couples:             gameState.couples,
     islanderAdjustments: gameState.islanderAdjustments,
     managerAdjustments:  gameState.managerAdjustments,
   }))
 }
 
+function persistCouples() {
+  return setDoc(COUPLES_DOC, { pairs: plain(gameState.couples) })
+}
+
 export function initStore() {
   return new Promise((resolve) => {
+    let stateReady   = false
+    let couplesReady = false
+
+    function tryResolve() {
+      if (stateReady && couplesReady && !isReady.value) {
+        isReady.value = true
+        resolve()
+      }
+    }
+
     onSnapshot(
       STATE_DOC,
       (snap) => {
@@ -54,19 +80,29 @@ export function initStore() {
           islanderEvents:      data.islanderEvents      ?? {},
           eliminated:          data.eliminated          ?? [],
           bombshells:          data.bombshells          ?? [],
-          couples:             data.couples             ?? {},
           islanderAdjustments: data.islanderAdjustments ?? {},
           managerAdjustments:  data.managerAdjustments  ?? {},
         })
-        if (!isReady.value) {
-          isReady.value = true
-          resolve()
-        }
+        if (!stateReady) { stateReady = true; tryResolve() }
       },
       (err) => {
         console.error('Firestore error:', err)
-        isReady.value = true
-        resolve()
+        stateReady = true
+        tryResolve()
+      }
+    )
+
+    onSnapshot(
+      COUPLES_DOC,
+      (snap) => {
+        const data = snap.exists() ? snap.data() : {}
+        gameState.couples = normaliseCouples(data.pairs)
+        if (!couplesReady) { couplesReady = true; tryResolve() }
+      },
+      (err) => {
+        console.error('Firestore couples error:', err)
+        couplesReady = true
+        tryResolve()
       }
     )
   })
@@ -82,17 +118,13 @@ export function getIslanderPoints(name) {
   return getIslanderEventPoints(name) + (gameState.islanderAdjustments[name] ?? 0)
 }
 
-// Points a manager has earned from their CURRENT picks (above each islander's baseline at pickup)
-// plus any points banked from previously held islanders
 export function getManagerPicksScore(managerName) {
-  const picks    = gameState.managerPicks[managerName]  ?? []
+  const picks     = gameState.managerPicks[managerName]  ?? []
   const baselines = gameState.pickBaselines[managerName] ?? {}
-  const banked   = gameState.managerBanked[managerName]  ?? 0
-
+  const banked    = gameState.managerBanked[managerName]  ?? 0
   const activeEarned = picks.reduce((s, isl) =>
     s + (getIslanderPoints(isl) - (baselines[isl] ?? 0)), 0
   )
-
   return activeEarned + banked
 }
 
@@ -100,14 +132,20 @@ export function getManagerScore(managerName) {
   return getManagerPicksScore(managerName) + (gameState.managerAdjustments[managerName] ?? 0)
 }
 
-export function setAdjustments(islanderMap, managerMap) {
-  gameState.islanderAdjustments = islanderMap
-  gameState.managerAdjustments  = managerMap
-  persist()
+export function getPartner(name) {
+  const pair = gameState.couples.find(c => c.a === name || c.b === name)
+  if (!pair) return null
+  return pair.a === name ? pair.b : pair.a
 }
 
 export function isEliminated(name) {
   return gameState.eliminated.includes(name)
+}
+
+export function setAdjustments(islanderMap, managerMap) {
+  gameState.islanderAdjustments = islanderMap
+  gameState.managerAdjustments  = managerMap
+  persist()
 }
 
 // ── Mutations ─────────────────────────────────────────────
@@ -118,7 +156,6 @@ export function setManagerPicks(managerName, newPicks) {
   if (!gameState.pickBaselines[managerName]) gameState.pickBaselines[managerName] = {}
   if (gameState.managerBanked[managerName] == null) gameState.managerBanked[managerName] = 0
 
-  // Bank earned points for any islander being dropped
   oldPicks.forEach(isl => {
     if (!newPicks.includes(isl)) {
       const baseline = gameState.pickBaselines[managerName][isl] ?? 0
@@ -128,7 +165,6 @@ export function setManagerPicks(managerName, newPicks) {
     }
   })
 
-  // Record baseline for any islander being newly added
   newPicks.forEach(isl => {
     if (!oldPicks.includes(isl)) {
       gameState.pickBaselines[managerName][isl] = getIslanderPoints(isl)
@@ -190,22 +226,18 @@ export function removeBombshell(name) {
 }
 
 export function setCouple(nameA, nameB) {
-  // Clear any existing partners for either islander first
-  if (gameState.couples[nameA]) delete gameState.couples[gameState.couples[nameA]]
-  if (gameState.couples[nameB]) delete gameState.couples[gameState.couples[nameB]]
-  gameState.couples[nameA] = nameB
-  gameState.couples[nameB] = nameA
-  persist()
+  gameState.couples = gameState.couples.filter(
+    c => c.a !== nameA && c.b !== nameA && c.a !== nameB && c.b !== nameB
+  )
+  gameState.couples.push({ a: nameA, b: nameB })
+  persistCouples()
 }
 
 export function removeCouple(name) {
-  const partner = gameState.couples[name]
-  if (partner) delete gameState.couples[partner]
-  delete gameState.couples[name]
-  persist()
+  gameState.couples = gameState.couples.filter(c => c.a !== name && c.b !== name)
+  persistCouples()
 }
 
-// Wipe only point-related data; keeps picks and baselines intact
 export function resetPoints() {
   gameState.islanderEvents      = {}
   gameState.islanderAdjustments = {}
@@ -215,7 +247,6 @@ export function resetPoints() {
   persist()
 }
 
-// Wipe picks and all tenure tracking; keeps point events
 export function resetPicks() {
   gameState.managerPicks  = {}
   gameState.pickBaselines = {}
@@ -225,5 +256,7 @@ export function resetPicks() {
 
 export function resetAll() {
   Object.assign(gameState, defaultState())
+  gameState.couples = []
   persist()
+  persistCouples()
 }

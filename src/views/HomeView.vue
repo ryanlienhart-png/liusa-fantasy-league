@@ -8,7 +8,6 @@
       </div>
       <h1 class="fantasy-title">Fantasy League</h1>
       <p class="hosted-by">Hosted by <span>Sriyonce</span></p>
-      <p class="season-badge">Summer 2026 &nbsp;·&nbsp; Villa League</p>
 
       <div class="hero-actions">
         <RouterLink to="/leaderboard" class="btn-primary">View Leaderboard</RouterLink>
@@ -19,7 +18,7 @@
     <!-- Quick stats -->
     <section class="stats-section container">
       <div class="stat-card">
-        <span class="stat-num">15</span>
+        <span class="stat-num">{{ managers.length }}</span>
         <span class="stat-label">Managers</span>
       </div>
       <div class="stat-card">
@@ -64,11 +63,11 @@
 <script setup>
 import { computed } from 'vue'
 import { islanders } from '../data/islanders.js'
-import { managers }  from '../data/managers.js'
+import { managers, villaManagers } from '../data/managers.js'
 import { gameState } from '../store/game.js'
 
 const islanderCount = computed(() => islanders.length + gameState.bombshells.length)
-const prizePool     = computed(() => managers.length * 5)
+const prizePool     = computed(() => villaManagers.length * 5)
 const activeCount   = computed(() =>
   islanderCount.value - gameState.eliminated.length
 )
@@ -143,7 +142,7 @@ const activeCount   = computed(() =>
   font-size: 1.1rem;
   font-weight: 700;
   color: var(--text-mid);
-  margin-bottom: 4px;
+  margin-bottom: 16px;
   animation: fadeDown .8s .3s ease both;
 }
 .hosted-by span { color: var(--pink); font-weight: 900; }

@@ -3,7 +3,6 @@
     <div class="nav-inner container">
       <RouterLink to="/" class="brand">
         <span class="brand-heart">💛</span>
-        <span class="brand-name">Villa League</span>
       </RouterLink>
 
       <div class="nav-links" :class="{ open: menuOpen }">

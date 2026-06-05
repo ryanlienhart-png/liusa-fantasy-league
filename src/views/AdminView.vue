@@ -39,17 +39,18 @@
           <p class="panel-sub">Each manager gets 2 islanders. Max 3 managers per islander.</p>
 
           <div class="picks-grid">
-            <div v-for="m in managers" :key="m.name" class="pick-row">
+            <div v-for="m in managers" :key="mgrKey(m)" class="pick-row">
               <div class="pick-mgr" :style="{ borderLeftColor: m.color }">
                 <strong>{{ m.name }}</strong>
-                <span v-if="m.isHost" class="pill pill-host" style="margin-left:6px">Host</span>
+                <span v-if="m.league === 'casa'" class="pill" style="margin-left:6px;background:#fff3e0;color:#E65100;font-size:.7rem">Casa</span>
+                <span v-if="m.isHost" class="pill pill-host" style="margin-left:4px">Host</span>
               </div>
               <div class="pick-selects">
-                <select v-model="draftSelections[m.name][0]" class="pick-select" @change="savePick(m.name)">
+                <select v-model="draftSelections[mgrKey(m)][0]" class="pick-select" @change="savePick(mgrKey(m))">
                   <option value="">— Pick 1 —</option>
                   <option v-for="isl in allIslanderNames" :key="isl" :value="isl">{{ isl }}</option>
                 </select>
-                <select v-model="draftSelections[m.name][1]" class="pick-select" @change="savePick(m.name)">
+                <select v-model="draftSelections[mgrKey(m)][1]" class="pick-select" @change="savePick(mgrKey(m))">
                   <option value="">— Pick 2 —</option>
                   <option v-for="isl in allIslanderNames" :key="isl" :value="isl">{{ isl }}</option>
                 </select>
@@ -217,11 +218,11 @@
               <span class="ov-r">Bonus</span>
               <span class="ov-r">Total</span>
             </div>
-            <div v-for="m in managers" :key="m.name" class="ov-row">
-              <span class="ov-name">{{ m.name }}</span>
-              <span class="ov-r ov-dim">{{ getManagerPicksScore(m.name) }}</span>
-              <input v-model.number="mgrAdj[m.name]" type="number" class="ov-input" @focus="$event.target.select()" />
-              <span class="ov-r ov-bold">{{ ovMgrTotal(m.name) }}</span>
+            <div v-for="m in managers" :key="mgrKey(m)" class="ov-row">
+              <span class="ov-name">{{ m.name }}<em v-if="m.storeKey" style="font-size:.75rem;color:var(--text-mid);margin-left:4px">(Casa)</em></span>
+              <span class="ov-r ov-dim">{{ getManagerPicksScore(mgrKey(m)) }}</span>
+              <input v-model.number="mgrAdj[mgrKey(m)]" type="number" class="ov-input" @focus="$event.target.select()" />
+              <span class="ov-r ov-bold">{{ ovMgrTotal(m) }}</span>
             </div>
           </div>
 
@@ -265,7 +266,7 @@
 
 <script setup>
 import { ref, reactive, computed, watch } from 'vue'
-import { managers }   from '../data/managers.js'
+import { managers, mgrKey } from '../data/managers.js'
 import { islanders }  from '../data/islanders.js'
 import { positiveEvents, negativeEvents, bonusEvents } from '../data/pointEvents.js'
 import {
@@ -313,13 +314,13 @@ const activeTab = ref('picks')
 // ── Draft picks ──
 const draftSelections = reactive({})
 managers.forEach(m => {
-  draftSelections[m.name] = [...(gameState.managerPicks[m.name] || ['', ''])]
-  while (draftSelections[m.name].length < 2) draftSelections[m.name].push('')
+  draftSelections[mgrKey(m)] = [...(gameState.managerPicks[mgrKey(m)] || ['', ''])]
+  while (draftSelections[mgrKey(m)].length < 2) draftSelections[mgrKey(m)].push('')
 })
 
-function savePick(managerName) {
-  const picks = draftSelections[managerName].filter(Boolean)
-  setManagerPicks(managerName, picks)
+function savePick(key) {
+  const picks = draftSelections[key].filter(Boolean)
+  setManagerPicks(key, picks)
 }
 
 const allIslanderNames = computed(() => {
@@ -360,18 +361,7 @@ function removeBombshell(name) { storeRemoveBombshell(name) }
 // ── Couples ──
 const coupleForm = reactive({ a: '', b: '' })
 
-const couplesList = computed(() => {
-  const seen = new Set()
-  const result = []
-  for (const [a, b] of Object.entries(gameState.couples)) {
-    const key = [a, b].sort().join('|')
-    if (!seen.has(key)) {
-      seen.add(key)
-      result.push({ a, b })
-    }
-  }
-  return result
-})
+const couplesList = computed(() => gameState.couples)
 
 function coupleUp() {
   if (!coupleForm.a || !coupleForm.b || coupleForm.a === coupleForm.b) return
@@ -393,7 +383,7 @@ function initOvAdj() {
     islAdj[name] = gameState.islanderAdjustments[name] ?? 0
   })
   managers.forEach(m => {
-    mgrAdj[m.name] = gameState.managerAdjustments[m.name] ?? 0
+    mgrAdj[mgrKey(m)] = gameState.managerAdjustments[mgrKey(m)] ?? 0
   })
 }
 
@@ -404,9 +394,9 @@ function ovIslanderTotal(name) {
   return getIslanderEventPoints(name) + adj
 }
 
-function ovMgrTotal(name) {
-  const adj = Number.isFinite(mgrAdj[name]) ? mgrAdj[name] : 0
-  return getManagerPicksScore(name) + adj
+function ovMgrTotal(m) {
+  const adj = Number.isFinite(mgrAdj[mgrKey(m)]) ? mgrAdj[mgrKey(m)] : 0
+  return getManagerPicksScore(mgrKey(m)) + adj
 }
 
 function reviewOvChanges() {
@@ -420,11 +410,12 @@ function reviewOvChanges() {
     }
   })
   managers.forEach(m => {
-    const oldAdj = gameState.managerAdjustments[m.name] ?? 0
-    const newAdj = Number.isFinite(mgrAdj[m.name]) ? mgrAdj[m.name] : 0
+    const key    = mgrKey(m)
+    const oldAdj = gameState.managerAdjustments[key] ?? 0
+    const newAdj = Number.isFinite(mgrAdj[key]) ? mgrAdj[key] : 0
     if (oldAdj !== newAdj) {
-      const base = getManagerPicksScore(m.name)
-      changes.push({ label: `${m.name} (manager)`, from: base + oldAdj, to: base + newAdj })
+      const label = m.storeKey ? `${m.name} (Casa)` : m.name
+      changes.push({ label: `${label} (manager)`, from: getManagerPicksScore(key) + oldAdj, to: getManagerPicksScore(key) + newAdj })
     }
   })
   ovChanges.value = changes
@@ -438,7 +429,7 @@ function saveOvChanges() {
   })
   const mMap = {}
   managers.forEach(m => {
-    mMap[m.name] = Number.isFinite(mgrAdj[m.name]) ? mgrAdj[m.name] : 0
+    mMap[mgrKey(m)] = Number.isFinite(mgrAdj[mgrKey(m)]) ? mgrAdj[mgrKey(m)] : 0
   })
   setAdjustments(iMap, mMap)
   showOvConfirm.value = false
@@ -458,11 +449,11 @@ function confirmReset(type) {
     resetMsg.value = 'All points cleared.'
   } else if (type === 'picks') {
     resetPicks()
-    managers.forEach(m => { draftSelections[m.name] = ['', ''] })
+    managers.forEach(m => { draftSelections[mgrKey(m)] = ['', ''] })
     resetMsg.value = 'All draft picks cleared.'
   } else {
     resetAll()
-    managers.forEach(m => { draftSelections[m.name] = ['', ''] })
+    managers.forEach(m => { draftSelections[mgrKey(m)] = ['', ''] })
     resetMsg.value = 'Everything has been reset.'
   }
   clearTimeout(resetTimer)
