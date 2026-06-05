@@ -1,0 +1,791 @@
+<template>
+  <div class="admin-page">
+    <div class="container">
+
+      <!-- Password gate -->
+      <template v-if="!authed">
+        <h2 class="page-title">Admin Panel</h2>
+        <div class="auth-card">
+          <p class="auth-lede">Commissioner only. Enter the password to continue.</p>
+          <input
+            v-model="pwInput"
+            type="password"
+            placeholder="Password"
+            class="auth-input"
+            @keyup.enter="tryAuth"
+          />
+          <button class="btn-pink" @click="tryAuth">Enter</button>
+          <p v-if="authError" class="auth-err">Wrong password. Try again.</p>
+        </div>
+      </template>
+
+      <!-- Admin interface -->
+      <template v-else>
+        <div class="admin-header">
+          <h2 class="page-title" style="margin-bottom:0">Admin Panel</h2>
+          <button class="btn-ghost" @click="authed = false">Lock</button>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+          <button v-for="t in tabs" :key="t.key" class="tab-btn" :class="{ active: activeTab === t.key }" @click="activeTab = t.key">
+            {{ t.label }}
+          </button>
+        </div>
+
+        <!-- ── TAB: Draft Picks ── -->
+        <section v-if="activeTab === 'picks'" class="tab-panel">
+          <h3 class="panel-title">Assign Draft Picks</h3>
+          <p class="panel-sub">Each manager gets 2 islanders. Max 3 managers per islander.</p>
+
+          <div class="picks-grid">
+            <div v-for="m in managers" :key="m.name" class="pick-row">
+              <div class="pick-mgr" :style="{ borderLeftColor: m.color }">
+                <strong>{{ m.name }}</strong>
+                <span v-if="m.isHost" class="pill pill-host" style="margin-left:6px">Host</span>
+              </div>
+              <div class="pick-selects">
+                <select v-model="draftSelections[m.name][0]" class="pick-select" @change="savePick(m.name)">
+                  <option value="">— Pick 1 —</option>
+                  <option v-for="isl in allIslanderNames" :key="isl" :value="isl">{{ isl }}</option>
+                </select>
+                <select v-model="draftSelections[m.name][1]" class="pick-select" @change="savePick(m.name)">
+                  <option value="">— Pick 2 —</option>
+                  <option v-for="isl in allIslanderNames" :key="isl" :value="isl">{{ isl }}</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── TAB: Log Points ── -->
+        <section v-if="activeTab === 'points'" class="tab-panel">
+          <h3 class="panel-title">Log Point Event</h3>
+
+          <div class="log-form">
+            <div class="form-row">
+              <label>Islander</label>
+              <select v-model="logForm.islander" class="pick-select">
+                <option value="">— Select Islander —</option>
+                <option v-for="n in allIslanderNames" :key="n" :value="n">{{ n }}</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label>Event</label>
+              <select v-model="logForm.eventId" class="pick-select">
+                <option value="">— Select Event —</option>
+                <optgroup label="Positive">
+                  <option v-for="e in positiveEvents" :key="e.id" :value="e.id">+{{ e.points }} — {{ e.label }}</option>
+                </optgroup>
+                <optgroup label="Negative">
+                  <option v-for="e in negativeEvents" :key="e.id" :value="e.id">{{ e.points }} — {{ e.label }}</option>
+                </optgroup>
+                <optgroup label="Bonus">
+                  <option v-for="e in bonusEvents" :key="e.id" :value="e.id">+{{ e.points }} — {{ e.label }}</option>
+                </optgroup>
+              </select>
+            </div>
+            <div class="form-row">
+              <label>Episode # <em>(optional)</em></label>
+              <input v-model="logForm.episode" type="text" class="pick-select" placeholder="e.g. 3" />
+            </div>
+            <div class="form-row">
+              <label>Note <em>(optional)</em></label>
+              <input v-model="logForm.note" type="text" class="pick-select" placeholder="e.g. Chose Gabriel at recoupling" />
+            </div>
+            <button class="btn-pink" :disabled="!logForm.islander || !logForm.eventId" @click="submitLog">
+              + Log Event
+            </button>
+            <p v-if="logSuccess" class="success-msg">✅ Event logged!</p>
+          </div>
+
+          <!-- Event history per islander -->
+          <div v-if="logForm.islander && islanderLog.length" class="event-history">
+            <h4>{{ logForm.islander }}'s Events</h4>
+            <div class="event-list">
+              <div v-for="(ev, i) in islanderLog" :key="i" class="event-item" :class="ev.points > 0 ? 'ev-pos' : 'ev-neg'">
+                <span class="ev-pts">{{ ev.points > 0 ? '+' : '' }}{{ ev.points }}</span>
+                <span class="ev-label">{{ ev.label }}</span>
+                <span v-if="ev.episode" class="ev-ep">Ep. {{ ev.episode }}</span>
+                <span v-if="ev.note" class="ev-note">{{ ev.note }}</span>
+                <button class="ev-del" @click="removeEvent(logForm.islander, i)" title="Remove">✕</button>
+              </div>
+            </div>
+            <p class="ev-total">Total: <strong>{{ islanderTotal }}</strong> pts</p>
+          </div>
+        </section>
+
+        <!-- ── TAB: Roster ── -->
+        <section v-if="activeTab === 'roster'" class="tab-panel">
+          <h3 class="panel-title">Manage Roster</h3>
+
+          <h4 class="sub-panel-head">OG Islanders</h4>
+          <div class="roster-grid">
+            <div v-for="isl in islanders" :key="isl.name" class="roster-item">
+              <div class="roster-swatch" :style="{ background: isl.gradient }">{{ isl.name[0] }}</div>
+              <span class="roster-name">{{ isl.name }}</span>
+              <span class="roster-pts">{{ getIslanderPoints(isl.name) }} pts</span>
+              <button
+                class="toggle-elim-btn"
+                :class="isEliminated(isl.name) ? 'btn-restore' : 'btn-elim'"
+                @click="toggleEliminated(isl.name)"
+              >
+                {{ isEliminated(isl.name) ? 'Restore' : 'Eliminate' }}
+              </button>
+            </div>
+          </div>
+
+          <h4 class="sub-panel-head" style="margin-top:32px">Bombshells</h4>
+          <div class="bomb-add">
+            <input v-model="bombForm.name" type="text" class="pick-select" placeholder="Bombshell name" />
+            <select v-model="bombForm.gender" class="pick-select bomb-gender">
+              <option value="female">Girl</option>
+              <option value="male">Boy</option>
+            </select>
+            <button class="btn-pink" :disabled="!bombForm.name.trim()" @click="addBombshell">+ Add Bombshell</button>
+          </div>
+          <div v-if="gameState.bombshells.length" class="roster-grid" style="margin-top:12px">
+            <div v-for="b in gameState.bombshells" :key="b.name" class="roster-item">
+              <div class="roster-swatch bomb-swatch">💣</div>
+              <span class="roster-name">{{ b.name }}</span>
+              <span class="roster-pts">{{ getIslanderPoints(b.name) }} pts</span>
+              <button class="toggle-elim-btn btn-elim" @click="removeBombshell(b.name)">Remove</button>
+            </div>
+          </div>
+          <p v-else class="empty-msg">No bombshells yet.</p>
+        </section>
+
+        <!-- ── TAB: Couples ── -->
+        <section v-if="activeTab === 'couples'" class="tab-panel">
+          <h3 class="panel-title">Couples</h3>
+          <p class="panel-sub">Pair two islanders together. Their card will show the partner's name.</p>
+
+          <div class="couple-form">
+            <select v-model="coupleForm.a" class="pick-select">
+              <option value="">— Islander 1 —</option>
+              <option v-for="n in allIslanderNames" :key="n" :value="n">{{ n }}</option>
+            </select>
+            <span class="couple-heart">❤</span>
+            <select v-model="coupleForm.b" class="pick-select">
+              <option value="">— Islander 2 —</option>
+              <option v-for="n in allIslanderNames" :key="n" :value="n">{{ n }}</option>
+            </select>
+            <button
+              class="btn-pink"
+              :disabled="!coupleForm.a || !coupleForm.b || coupleForm.a === coupleForm.b"
+              @click="coupleUp"
+            >Couple Up</button>
+          </div>
+
+          <div v-if="couplesList.length" class="couples-list">
+            <div v-for="c in couplesList" :key="c.a + c.b" class="couple-item">
+              <span class="couple-names">{{ c.a }} <span class="couple-heart">❤</span> {{ c.b }}</span>
+              <button class="toggle-elim-btn btn-elim" @click="removeCouple(c.a)">Split</button>
+            </div>
+          </div>
+          <p v-else class="empty-msg">No couples set yet.</p>
+        </section>
+
+        <!-- ── TAB: Override Points ── -->
+        <section v-if="activeTab === 'override'" class="tab-panel">
+          <h3 class="panel-title">Override Points</h3>
+          <p class="panel-sub">Set a bonus (or deduction) on top of earned points. Click <strong>Review Changes</strong> when ready — nothing saves until you confirm.</p>
+
+          <h4 class="sub-panel-head">Islander Bonuses</h4>
+          <div class="ov-table">
+            <div class="ov-head">
+              <span>Islander</span>
+              <span class="ov-r">Event Pts</span>
+              <span class="ov-r">Bonus</span>
+              <span class="ov-r">Total</span>
+            </div>
+            <div v-for="name in allIslanderNames" :key="name" class="ov-row">
+              <span class="ov-name">{{ name }}</span>
+              <span class="ov-r ov-dim">{{ getIslanderEventPoints(name) }}</span>
+              <input v-model.number="islAdj[name]" type="number" class="ov-input" @focus="$event.target.select()" />
+              <span class="ov-r ov-bold" :class="{ 'ov-pos': ovIslanderTotal(name) > 0, 'ov-neg': ovIslanderTotal(name) < 0 }">
+                {{ ovIslanderTotal(name) }}
+              </span>
+            </div>
+          </div>
+
+          <h4 class="sub-panel-head" style="margin-top:36px">Manager Bonuses</h4>
+          <div class="ov-table">
+            <div class="ov-head">
+              <span>Manager</span>
+              <span class="ov-r">Pick Score</span>
+              <span class="ov-r">Bonus</span>
+              <span class="ov-r">Total</span>
+            </div>
+            <div v-for="m in managers" :key="m.name" class="ov-row">
+              <span class="ov-name">{{ m.name }}</span>
+              <span class="ov-r ov-dim">{{ getManagerPicksScore(m.name) }}</span>
+              <input v-model.number="mgrAdj[m.name]" type="number" class="ov-input" @focus="$event.target.select()" />
+              <span class="ov-r ov-bold">{{ ovMgrTotal(m.name) }}</span>
+            </div>
+          </div>
+
+          <div style="margin-top:28px" v-if="!showOvConfirm">
+            <button class="btn-pink" @click="reviewOvChanges">Review Changes</button>
+          </div>
+
+          <div v-if="showOvConfirm" class="ov-confirm">
+            <h4 class="ov-confirm-title">Confirm Changes</h4>
+            <template v-if="ovChanges.length">
+              <div v-for="c in ovChanges" :key="c.label" class="ov-change-item">
+                <span class="ovc-label">{{ c.label }}</span>
+                <span class="ovc-arrow">{{ c.from }} pts → <strong>{{ c.to }} pts</strong></span>
+              </div>
+            </template>
+            <p v-else class="empty-msg" style="margin:0">No changes detected.</p>
+            <div class="ov-confirm-actions">
+              <button class="btn-pink" :disabled="!ovChanges.length" @click="saveOvChanges">✅ Confirm & Save</button>
+              <button class="btn-ghost" @click="showOvConfirm = false">Cancel</button>
+            </div>
+            <p v-if="ovSaved" class="success-msg">✅ Saved!</p>
+          </div>
+        </section>
+
+        <!-- ── TAB: Reset ── -->
+        <section v-if="activeTab === 'reset'" class="tab-panel">
+          <h3 class="panel-title">Data Management</h3>
+          <p class="panel-sub danger-text">These actions cannot be undone.</p>
+          <div class="reset-btns">
+            <button class="btn-danger" @click="confirmReset('points')">Reset All Points</button>
+            <button class="btn-danger" @click="confirmReset('picks')">Reset All Draft Picks</button>
+            <button class="btn-danger" @click="confirmReset('all')">Reset Everything</button>
+          </div>
+          <p v-if="resetMsg" class="success-msg">{{ resetMsg }}</p>
+        </section>
+
+      </template>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, reactive, computed, watch } from 'vue'
+import { managers }   from '../data/managers.js'
+import { islanders }  from '../data/islanders.js'
+import { positiveEvents, negativeEvents, bonusEvents } from '../data/pointEvents.js'
+import {
+  gameState,
+  getIslanderPoints,
+  getIslanderEventPoints,
+  getManagerScore,
+  getManagerPicksScore,
+  isEliminated,
+  setManagerPicks,
+  logEvent,
+  removeEvent,
+  toggleEliminated,
+  addBombshell as storeAddBombshell,
+  removeBombshell as storeRemoveBombshell,
+  setAdjustments,
+  setCouple,
+  removeCouple,
+  resetPoints,
+  resetPicks,
+  resetAll,
+} from '../store/game.js'
+
+const ADMIN_PW = 'villa2026'
+
+const authed    = ref(false)
+const pwInput   = ref('')
+const authError = ref(false)
+
+function tryAuth() {
+  if (pwInput.value === ADMIN_PW) { authed.value = true; authError.value = false }
+  else { authError.value = true }
+}
+
+const tabs = [
+  { key: 'picks',    label: '📋 Draft Picks'     },
+  { key: 'points',   label: '🏆 Log Points'      },
+  { key: 'roster',   label: '🌴 Roster'          },
+  { key: 'couples',  label: '❤️ Couples'         },
+  { key: 'override', label: '✏️ Override Points' },
+  { key: 'reset',    label: '⚠️ Reset'           },
+]
+const activeTab = ref('picks')
+
+// ── Draft picks ──
+const draftSelections = reactive({})
+managers.forEach(m => {
+  draftSelections[m.name] = [...(gameState.managerPicks[m.name] || ['', ''])]
+  while (draftSelections[m.name].length < 2) draftSelections[m.name].push('')
+})
+
+function savePick(managerName) {
+  const picks = draftSelections[managerName].filter(Boolean)
+  setManagerPicks(managerName, picks)
+}
+
+const allIslanderNames = computed(() => {
+  const og    = islanders.map(i => i.name)
+  const bombs = gameState.bombshells.map(b => b.name)
+  return [...og, ...bombs]
+})
+
+// ── Log points ──
+const logForm = reactive({ islander: '', eventId: '', episode: '', note: '' })
+const logSuccess = ref(false)
+let logTimer = null
+
+const islanderLog = computed(() =>
+  logForm.islander ? (gameState.islanderEvents[logForm.islander] || []) : []
+)
+const islanderTotal = computed(() => getIslanderPoints(logForm.islander))
+
+function submitLog() {
+  logEvent(logForm.islander, logForm.eventId, logForm.episode, logForm.note)
+  logForm.eventId = ''; logForm.episode = ''; logForm.note = ''
+  logSuccess.value = true
+  clearTimeout(logTimer)
+  logTimer = setTimeout(() => { logSuccess.value = false }, 2500)
+}
+
+// ── Roster ──
+const bombForm = reactive({ name: '', gender: 'female' })
+
+function addBombshell() {
+  if (!bombForm.name.trim()) return
+  storeAddBombshell(bombForm.name.trim(), null, bombForm.gender)
+  bombForm.name = ''
+  bombForm.gender = 'female'
+}
+function removeBombshell(name) { storeRemoveBombshell(name) }
+
+// ── Couples ──
+const coupleForm = reactive({ a: '', b: '' })
+
+const couplesList = computed(() => {
+  const seen = new Set()
+  const result = []
+  for (const [a, b] of Object.entries(gameState.couples)) {
+    const key = [a, b].sort().join('|')
+    if (!seen.has(key)) {
+      seen.add(key)
+      result.push({ a, b })
+    }
+  }
+  return result
+})
+
+function coupleUp() {
+  if (!coupleForm.a || !coupleForm.b || coupleForm.a === coupleForm.b) return
+  setCouple(coupleForm.a, coupleForm.b)
+  coupleForm.a = ''
+  coupleForm.b = ''
+}
+
+// ── Override Points ──
+const islAdj        = reactive({})
+const mgrAdj        = reactive({})
+const showOvConfirm = ref(false)
+const ovChanges     = ref([])
+const ovSaved       = ref(false)
+let ovSavedTimer    = null
+
+function initOvAdj() {
+  allIslanderNames.value.forEach(name => {
+    islAdj[name] = gameState.islanderAdjustments[name] ?? 0
+  })
+  managers.forEach(m => {
+    mgrAdj[m.name] = gameState.managerAdjustments[m.name] ?? 0
+  })
+}
+
+watch(activeTab, (tab) => { if (tab === 'override') initOvAdj() })
+
+function ovIslanderTotal(name) {
+  const adj = Number.isFinite(islAdj[name]) ? islAdj[name] : 0
+  return getIslanderEventPoints(name) + adj
+}
+
+function ovMgrTotal(name) {
+  const adj = Number.isFinite(mgrAdj[name]) ? mgrAdj[name] : 0
+  return getManagerPicksScore(name) + adj
+}
+
+function reviewOvChanges() {
+  const changes = []
+  allIslanderNames.value.forEach(name => {
+    const oldAdj = gameState.islanderAdjustments[name] ?? 0
+    const newAdj = Number.isFinite(islAdj[name]) ? islAdj[name] : 0
+    if (oldAdj !== newAdj) {
+      const base = getIslanderEventPoints(name)
+      changes.push({ label: `${name} (islander)`, from: base + oldAdj, to: base + newAdj })
+    }
+  })
+  managers.forEach(m => {
+    const oldAdj = gameState.managerAdjustments[m.name] ?? 0
+    const newAdj = Number.isFinite(mgrAdj[m.name]) ? mgrAdj[m.name] : 0
+    if (oldAdj !== newAdj) {
+      const base = getManagerPicksScore(m.name)
+      changes.push({ label: `${m.name} (manager)`, from: base + oldAdj, to: base + newAdj })
+    }
+  })
+  ovChanges.value = changes
+  showOvConfirm.value = true
+}
+
+function saveOvChanges() {
+  const iMap = {}
+  allIslanderNames.value.forEach(name => {
+    iMap[name] = Number.isFinite(islAdj[name]) ? islAdj[name] : 0
+  })
+  const mMap = {}
+  managers.forEach(m => {
+    mMap[m.name] = Number.isFinite(mgrAdj[m.name]) ? mgrAdj[m.name] : 0
+  })
+  setAdjustments(iMap, mMap)
+  showOvConfirm.value = false
+  ovSaved.value = true
+  clearTimeout(ovSavedTimer)
+  ovSavedTimer = setTimeout(() => { ovSaved.value = false }, 2500)
+}
+
+// ── Reset ──
+const resetMsg = ref('')
+let resetTimer = null
+
+function confirmReset(type) {
+  if (!confirm(`Are you sure you want to reset ${type}? This cannot be undone.`)) return
+  if (type === 'points') {
+    resetPoints()
+    resetMsg.value = 'All points cleared.'
+  } else if (type === 'picks') {
+    resetPicks()
+    managers.forEach(m => { draftSelections[m.name] = ['', ''] })
+    resetMsg.value = 'All draft picks cleared.'
+  } else {
+    resetAll()
+    managers.forEach(m => { draftSelections[m.name] = ['', ''] })
+    resetMsg.value = 'Everything has been reset.'
+  }
+  clearTimeout(resetTimer)
+  resetTimer = setTimeout(() => { resetMsg.value = '' }, 3000)
+}
+</script>
+
+<style scoped>
+.admin-page { padding: 40px 0 60px; }
+
+/* Auth */
+.auth-card {
+  max-width: 400px;
+  margin: 0 auto;
+  background: #fff;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 40px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.auth-lede { color: var(--text-mid); font-weight: 700; }
+.auth-input {
+  padding: 12px 16px;
+  border: 2px solid var(--pink-light);
+  border-radius: 10px;
+  font-size: 1rem;
+  font-family: 'Nunito', sans-serif;
+  outline: none;
+}
+.auth-input:focus { border-color: var(--pink); }
+.auth-err { color: #c00; font-weight: 700; font-size: .9rem; }
+
+/* Admin header */
+.admin-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 28px;
+}
+.tab-btn {
+  padding: 10px 20px;
+  border-radius: 999px;
+  border: 2px solid var(--pink-light);
+  background: #fff;
+  font-weight: 800;
+  font-size: .9rem;
+  cursor: pointer;
+  color: var(--text-mid);
+  transition: all .2s;
+}
+.tab-btn.active { background: var(--pink); border-color: var(--pink); color: #fff; }
+
+/* Panel */
+.tab-panel {
+  background: rgba(255,255,255,.9);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 32px;
+}
+.panel-title { font-family: 'Pacifico', cursive; color: var(--pink); font-size: 1.4rem; margin-bottom: 8px; }
+.panel-sub   { color: var(--text-mid); margin-bottom: 24px; font-weight: 700; }
+
+/* Picks */
+.picks-grid { display: flex; flex-direction: column; gap: 12px; }
+.pick-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  background: #fff;
+  border-radius: 10px;
+  border-left: 4px solid;
+  flex-wrap: wrap;
+}
+.pick-mgr { min-width: 130px; font-weight: 800; }
+.pick-selects { display: flex; gap: 10px; flex: 1; flex-wrap: wrap; }
+.pick-select {
+  flex: 1;
+  min-width: 160px;
+  padding: 8px 12px;
+  border: 2px solid var(--pink-light);
+  border-radius: 8px;
+  font-family: 'Nunito', sans-serif;
+  font-size: .9rem;
+  font-weight: 700;
+  outline: none;
+  background: #fff;
+  cursor: pointer;
+}
+.pick-select:focus { border-color: var(--pink); }
+
+/* Log form */
+.log-form { display: flex; flex-direction: column; gap: 14px; max-width: 560px; }
+.form-row { display: flex; flex-direction: column; gap: 6px; }
+.form-row label { font-weight: 800; font-size: .9rem; color: var(--text-mid); }
+.form-row label em { font-weight: 400; }
+
+.event-history { margin-top: 32px; }
+.event-history h4 { font-weight: 900; color: var(--text-mid); margin-bottom: 12px; }
+.event-list { display: flex; flex-direction: column; gap: 8px; max-height: 360px; overflow-y: auto; }
+.event-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: .88rem;
+  font-weight: 700;
+  flex-wrap: wrap;
+}
+.ev-pos { background: #d4edda; }
+.ev-neg { background: #f8d7da; }
+.ev-pts { font-size: 1rem; font-weight: 900; min-width: 44px; }
+.ev-label { flex: 1; }
+.ev-ep    { color: #666; font-size: .8rem; }
+.ev-note  { color: #555; font-style: italic; font-size: .8rem; flex-basis: 100%; padding-left: 54px; margin-top: -6px; }
+.ev-del {
+  background: none; border: none; cursor: pointer; color: #c00;
+  font-size: 1rem; padding: 0 4px; margin-left: auto;
+}
+.ev-del:hover { color: #800; }
+.ev-total { margin-top: 12px; font-weight: 900; color: var(--pink); }
+
+/* Roster */
+.sub-panel-head { font-weight: 900; font-size: 1rem; color: var(--text-mid); margin-bottom: 12px; text-transform: uppercase; letter-spacing: .05em; }
+.roster-grid { display: flex; flex-direction: column; gap: 8px; }
+.roster-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--cream);
+  border-radius: 10px;
+  flex-wrap: wrap;
+}
+.roster-swatch {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  color: #fff;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+.bomb-swatch { background: #FF8C00; font-size: 1.2rem; }
+.roster-name { flex: 1; font-weight: 800; }
+.roster-pts  { color: var(--pink); font-weight: 900; min-width: 60px; text-align: right; }
+
+.bomb-add { display: flex; gap: 10px; flex-wrap: wrap; }
+.bomb-add input { flex: 1; min-width: 200px; }
+.bomb-gender { flex: 0 0 auto; width: auto; }
+
+.empty-msg { color: var(--text-mid); font-weight: 700; margin-top: 12px; }
+
+/* Buttons */
+.btn-pink {
+  background: var(--pink);
+  color: #fff;
+  border: none;
+  padding: 12px 28px;
+  border-radius: 999px;
+  font-family: 'Nunito', sans-serif;
+  font-weight: 900;
+  font-size: .95rem;
+  cursor: pointer;
+  transition: background .2s, transform .2s;
+  align-self: flex-start;
+}
+.btn-pink:hover:not(:disabled) { background: var(--pink-dark); transform: translateY(-2px); }
+.btn-pink:disabled { opacity: .5; cursor: not-allowed; }
+
+.btn-ghost {
+  background: transparent;
+  border: 2px solid var(--pink-light);
+  color: var(--text-mid);
+  padding: 8px 20px;
+  border-radius: 999px;
+  font-family: 'Nunito', sans-serif;
+  font-weight: 800;
+  cursor: pointer;
+}
+.btn-ghost:hover { background: var(--pink-pale); }
+
+.toggle-elim-btn {
+  border: none;
+  border-radius: 999px;
+  padding: 6px 16px;
+  font-family: 'Nunito', sans-serif;
+  font-weight: 800;
+  font-size: .8rem;
+  cursor: pointer;
+}
+.btn-elim    { background: #f8d7da; color: #721c24; }
+.btn-restore { background: #d4edda; color: #155724; }
+
+.reset-btns { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+.btn-danger {
+  background: #dc3545;
+  color: #fff;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 999px;
+  font-family: 'Nunito', sans-serif;
+  font-weight: 900;
+  cursor: pointer;
+  transition: background .2s;
+}
+.btn-danger:hover { background: #a71d2a; }
+
+.danger-text { color: #721c24; }
+.success-msg { color: #155724; font-weight: 800; margin-top: 12px; }
+
+/* Couples tab */
+.couple-form {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 28px;
+}
+.couple-heart { font-size: 1.2rem; color: #c2185b; flex-shrink: 0; }
+
+.couples-list { display: flex; flex-direction: column; gap: 8px; }
+.couple-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: #fce4ec;
+  border-radius: 10px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.couple-names { font-weight: 800; font-size: 1rem; color: #880e4f; }
+
+/* Override Points tab */
+.ov-table { display: flex; flex-direction: column; gap: 6px; }
+
+.ov-head {
+  display: grid;
+  grid-template-columns: 1fr 90px 90px 80px;
+  gap: 8px;
+  padding: 4px 14px;
+  font-size: .75rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text-mid);
+}
+
+.ov-row {
+  display: grid;
+  grid-template-columns: 1fr 90px 90px 80px;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 14px;
+  background: var(--cream);
+  border-radius: 10px;
+}
+
+.ov-r    { text-align: right; }
+.ov-name { font-weight: 800; }
+.ov-dim  { color: var(--text-mid); font-weight: 700; }
+.ov-bold { font-weight: 900; }
+.ov-pos  { color: #155724; }
+.ov-neg  { color: #721c24; }
+
+.ov-input {
+  width: 100%;
+  padding: 5px 8px;
+  border: 2px solid var(--pink-light);
+  border-radius: 8px;
+  font-family: 'Nunito', sans-serif;
+  font-size: .9rem;
+  font-weight: 800;
+  text-align: right;
+  outline: none;
+  background: #fff;
+  box-sizing: border-box;
+}
+.ov-input:focus { border-color: var(--pink); }
+
+.ov-confirm {
+  margin-top: 24px;
+  background: #fff8e1;
+  border: 2px solid #ffc107;
+  border-radius: var(--radius);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ov-confirm-title { font-family: 'Pacifico', cursive; color: #856404; font-size: 1.1rem; }
+
+.ov-change-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(255,255,255,.75);
+  border-radius: 8px;
+  font-size: .9rem;
+}
+.ovc-label { font-weight: 800; }
+.ovc-arrow { color: var(--text-mid); }
+.ovc-arrow strong { color: var(--pink); }
+
+.ov-confirm-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+</style>

@@ -1,0 +1,17 @@
+export const managers = [
+  { id: 1,  name: 'Andrea',    color: '#FF6B6B', photo: '/managers/andrea.png'   },
+  { id: 2,  name: 'Anjali',    color: '#FF8E53', photo: '/managers/anjali.png'   },
+  { id: 3,  name: 'Asha',      color: '#FFC947', photo: '/managers/asha.png'     },
+  { id: 4,  name: 'Chichi',    color: '#FF6BAE', photo: '/managers/chichi.png'   },
+  { id: 5,  name: 'Kroix',     color: '#DA77F2', photo: '/managers/kroix.png'    },
+  { id: 6,  name: 'Lily',      color: '#7B68EE', photo: '/managers/lily.png'     },
+  { id: 7,  name: 'Makena',    color: '#48C9B0', photo: '/managers/makena.png'   },
+  { id: 8,  name: 'Melody',    color: '#45B7D1', photo: '/managers/melody.png'   },
+  { id: 9,  name: 'Nadia',     color: '#96CEB4', photo: '/managers/nadia.png'    },
+  { id: 10, name: 'Sam',       color: '#F0A500', photo: '/managers/sam.png'      },
+  { id: 11, name: 'Saniya',    color: '#DDA0DD', photo: '/managers/saniya.png'   },
+  { id: 12, name: 'Somnia',    color: '#82C341', photo: '/managers/somnia.png'   },
+  { id: 13, name: 'Srina',     color: '#FF1B8D', photo: '/managers/srina.png',   isHost: true },
+  { id: 14, name: 'Sydney B.', color: '#87CEEB', photo: '/managers/sydney b.png' },
+  { id: 15, name: 'Sydney W.', color: '#FFB347', photo: '/managers/sydney w.png' },
+]
