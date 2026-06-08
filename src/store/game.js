@@ -206,13 +206,15 @@ export function toggleEliminated(name) {
   persist()
 }
 
-export function addBombshell(name, gradient, gender = 'female') {
+export function addBombshell(name, gradient, gender = 'female', photo = null) {
   if (!gameState.bombshells.find(b => b.name === name)) {
-    gameState.bombshells.push({
+    const entry = {
       name,
       gender,
       gradient: gradient || 'linear-gradient(135deg, #FF1B8D, #FF8C00)',
-    })
+    }
+    if (photo) entry.photo = photo
+    gameState.bombshells.push(entry)
     persist()
   }
 }

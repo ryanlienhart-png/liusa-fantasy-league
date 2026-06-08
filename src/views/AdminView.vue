@@ -143,8 +143,15 @@
               <option value="female">Girl</option>
               <option value="male">Boy</option>
             </select>
-            <button class="btn-pink" :disabled="!bombForm.name.trim()" @click="addBombshell">+ Add Bombshell</button>
+            <label class="bomb-upload-btn">
+              {{ bombForm.file ? bombForm.file.name : '📷 Photo' }}
+              <input ref="bombFileInput" type="file" accept="image/*" style="display:none" @change="e => bombForm.file = e.target.files[0]" />
+            </label>
+            <button class="btn-pink" :disabled="!bombForm.name.trim() || bombUploading" @click="addBombshell">
+              {{ bombUploading ? 'Uploading…' : '+ Add Bombshell' }}
+            </button>
           </div>
+          <p v-if="bombUploadErr" class="auth-err" style="margin-top:8px">{{ bombUploadErr }}</p>
           <div v-if="gameState.bombshells.length" class="roster-grid" style="margin-top:12px">
             <div v-for="b in gameState.bombshells" :key="b.name" class="roster-item">
               <div class="roster-swatch bomb-swatch">💣</div>
@@ -267,6 +274,8 @@
 <script setup>
 import { ref, reactive, computed, watch } from 'vue'
 import { managers, mgrKey } from '../data/managers.js'
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
+import { storage } from '../firebase.js'
 import { islanders }  from '../data/islanders.js'
 import { positiveEvents, negativeEvents, bonusEvents } from '../data/pointEvents.js'
 import {
@@ -348,13 +357,33 @@ function submitLog() {
 }
 
 // ── Roster ──
-const bombForm = reactive({ name: '', gender: 'female' })
+const bombForm      = reactive({ name: '', gender: 'female', file: null })
+const bombFileInput = ref(null)
+const bombUploading = ref(false)
+const bombUploadErr = ref('')
 
-function addBombshell() {
+async function addBombshell() {
   if (!bombForm.name.trim()) return
-  storeAddBombshell(bombForm.name.trim(), null, bombForm.gender)
-  bombForm.name = ''
-  bombForm.gender = 'female'
+  bombUploading.value = true
+  bombUploadErr.value = ''
+  try {
+    let photoUrl = null
+    if (bombForm.file) {
+      const ext     = bombForm.file.name.split('.').pop()
+      const imgRef  = storageRef(storage, `islanders/${bombForm.name.trim().toLowerCase()}.${ext}`)
+      await uploadBytes(imgRef, bombForm.file)
+      photoUrl = await getDownloadURL(imgRef)
+    }
+    storeAddBombshell(bombForm.name.trim(), null, bombForm.gender, photoUrl)
+    bombForm.name   = ''
+    bombForm.gender = 'female'
+    bombForm.file   = null
+    if (bombFileInput.value) bombFileInput.value.value = ''
+  } catch (e) {
+    bombUploadErr.value = 'Upload failed. Check Firebase Storage is enabled.'
+  } finally {
+    bombUploading.value = false
+  }
 }
 function removeBombshell(name) { storeRemoveBombshell(name) }
 
@@ -617,9 +646,25 @@ function confirmReset(type) {
 .roster-name { flex: 1; font-weight: 800; }
 .roster-pts  { color: var(--pink); font-weight: 900; min-width: 60px; text-align: right; }
 
-.bomb-add { display: flex; gap: 10px; flex-wrap: wrap; }
-.bomb-add input { flex: 1; min-width: 200px; }
+.bomb-add { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.bomb-add input[type="text"] { flex: 1; min-width: 160px; }
 .bomb-gender { flex: 0 0 auto; width: auto; }
+.bomb-upload-btn {
+  padding: 8px 14px;
+  border: 2px dashed var(--pink-light);
+  border-radius: 8px;
+  font-family: 'Nunito', sans-serif;
+  font-size: .85rem;
+  font-weight: 700;
+  color: var(--text-mid);
+  cursor: pointer;
+  white-space: nowrap;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: border-color .2s, color .2s;
+}
+.bomb-upload-btn:hover { border-color: var(--pink); color: var(--pink); }
 
 .empty-msg { color: var(--text-mid); font-weight: 700; margin-top: 12px; }
 

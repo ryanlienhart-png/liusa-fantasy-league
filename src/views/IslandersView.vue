@@ -130,6 +130,7 @@ const boys  = computed(() => islanders.filter(i => i.gender === 'male'))
 const bombshellPhotos = {
   gabriel: '/islanders/gabriel.png',
   kayda:   '/islanders/kayda.jpg',
+  corbin:  '/islanders/corbin.png',
 }
 
 const bombshells = computed(() =>
