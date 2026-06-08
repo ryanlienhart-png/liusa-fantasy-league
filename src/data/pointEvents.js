@@ -8,6 +8,7 @@ export const positiveEvents = [
   { id: 'wins_fan_vote',    label: 'Wins Individual Fan Vote',            points: 15 },
   { id: 'coupled_recouple', label: 'Coupled Up at Recoupling',            points: 15 },
   { id: 'exclusive',        label: 'Becomes Exclusive',                   points: 15 },
+  { id: 'xxx',              label: 'Sex',                                 points: 20 },
   { id: 'hideaway',         label: 'Shares Hideaway',                     points: 10 },
   { id: 'sleeps_loyal',     label: 'Sleeps Outside to Stay Loyal',        points: 10 },
   { id: 'kiss_casa',        label: 'Kiss During Casa Amor',               points: 10 },
