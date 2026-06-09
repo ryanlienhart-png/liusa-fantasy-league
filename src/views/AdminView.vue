@@ -148,7 +148,7 @@
               <input ref="bombFileInput" type="file" accept="image/*" style="display:none" @change="e => bombForm.file = e.target.files[0]" />
             </label>
             <button class="btn-pink" :disabled="!bombForm.name.trim() || bombUploading" @click="addBombshell">
-              {{ bombUploading ? 'Uploading…' : '+ Add Bombshell' }}
+              {{ bombUploading ? 'Processing…' : '+ Add Bombshell' }}
             </button>
           </div>
           <p v-if="bombUploadErr" class="auth-err" style="margin-top:8px">{{ bombUploadErr }}</p>
@@ -274,8 +274,6 @@
 <script setup>
 import { ref, reactive, computed, watch } from 'vue'
 import { managers, mgrKey } from '../data/managers.js'
-import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
-import { storage } from '../firebase.js'
 import { islanders }  from '../data/islanders.js'
 import { positiveEvents, negativeEvents, bonusEvents } from '../data/pointEvents.js'
 import {
@@ -362,25 +360,43 @@ const bombFileInput = ref(null)
 const bombUploading = ref(false)
 const bombUploadErr = ref('')
 
+function resizeToBase64(file, maxSize = 300) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = reject
+    reader.onload = (e) => {
+      const img = new Image()
+      img.onerror = reject
+      img.onload = () => {
+        const ratio  = Math.min(maxSize / img.width, maxSize / img.height, 1)
+        const canvas = document.createElement('canvas')
+        canvas.width  = Math.round(img.width  * ratio)
+        canvas.height = Math.round(img.height * ratio)
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
+        resolve(canvas.toDataURL('image/jpeg', 0.75))
+      }
+      img.src = e.target.result
+    }
+    reader.readAsDataURL(file)
+  })
+}
+
 async function addBombshell() {
   if (!bombForm.name.trim()) return
   bombUploading.value = true
   bombUploadErr.value = ''
   try {
-    let photoUrl = null
+    let photo = null
     if (bombForm.file) {
-      const ext     = bombForm.file.name.split('.').pop()
-      const imgRef  = storageRef(storage, `islanders/${bombForm.name.trim().toLowerCase()}.${ext}`)
-      await uploadBytes(imgRef, bombForm.file)
-      photoUrl = await getDownloadURL(imgRef)
+      photo = await resizeToBase64(bombForm.file)
     }
-    storeAddBombshell(bombForm.name.trim(), null, bombForm.gender, photoUrl)
+    storeAddBombshell(bombForm.name.trim(), null, bombForm.gender, photo)
     bombForm.name   = ''
     bombForm.gender = 'female'
     bombForm.file   = null
     if (bombFileInput.value) bombFileInput.value.value = ''
   } catch (e) {
-    bombUploadErr.value = 'Upload failed. Check Firebase Storage is enabled.'
+    bombUploadErr.value = 'Image processing failed. Try a different photo.'
   } finally {
     bombUploading.value = false
   }

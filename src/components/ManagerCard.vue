@@ -65,7 +65,10 @@ const score = computed(() => getManagerScore(mgrKey(props.manager)))
 const bombshellPhotos = {
   gabriel: '/islanders/gabriel.png',
   kayda:   '/islanders/kayda.jpg',
-  corbin:  '/islanders/corbin.png',
+  corbin:  '/islanders/corbin.jpg',
+  caleb:   '/islanders/caleb.jpg',
+  jen:     '/islanders/jen.jpg',
+  sol:     '/islanders/sol.jpg',
 }
 
 // Combine OG islanders + live bombshells into one reactive lookup
