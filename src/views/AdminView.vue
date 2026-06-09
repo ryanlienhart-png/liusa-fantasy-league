@@ -2,29 +2,26 @@
   <div class="admin-page">
     <div class="container">
 
-      <!-- Password gate -->
       <template v-if="!authed">
-        <h2 class="page-title">Admin Panel</h2>
-        <div class="auth-card">
-          <p class="auth-lede">Commissioner only. Enter the password to continue.</p>
-          <input
-            v-model="pwInput"
-            type="password"
-            placeholder="Password"
-            class="auth-input"
-            @keyup.enter="tryAuth"
-          />
-          <button class="btn-pink" @click="tryAuth">Enter</button>
-          <p v-if="authError" class="auth-err">Wrong password. Try again.</p>
-        </div>
+        <p class="auth-lede">Global admin access required.</p>
       </template>
 
-      <!-- Admin interface -->
       <template v-else>
         <div class="admin-header">
-          <h2 class="page-title" style="margin-bottom:0">Admin Panel</h2>
-          <button class="btn-ghost" @click="authed = false">Lock</button>
+          <h2 class="page-title" style="margin-bottom:0">Commissioner Tools</h2>
+          <div class="header-actions">
+            <button
+              class="lock-btn"
+              :class="{ locked: gameState.picksLocked }"
+              @click="togglePickLock"
+            >
+              {{ gameState.picksLocked ? '🔒 Picks Locked' : '🔓 Unlock Picks' }}
+            </button>
+            <RouterLink to="/admin" class="btn-ghost">Global Admin</RouterLink>
+          </div>
         </div>
+        <p v-if="gameState.picksLocked" class="lock-notice">Villa &amp; Casa draft picks are locked. Managers cannot be reassigned until you unlock.</p>
+        <p v-if="pickError" class="auth-err">{{ pickError }}</p>
 
         <!-- Tabs -->
         <div class="tabs">
@@ -46,11 +43,11 @@
                 <span v-if="m.isHost" class="pill pill-host" style="margin-left:4px">Host</span>
               </div>
               <div class="pick-selects">
-                <select v-model="draftSelections[mgrKey(m)][0]" class="pick-select" @change="savePick(mgrKey(m))">
+                <select v-model="draftSelections[mgrKey(m)][0]" class="pick-select" :disabled="gameState.picksLocked" @change="savePick(m)">
                   <option value="">— Pick 1 —</option>
                   <option v-for="isl in allIslanderNames" :key="isl" :value="isl">{{ isl }}</option>
                 </select>
-                <select v-model="draftSelections[mgrKey(m)][1]" class="pick-select" @change="savePick(mgrKey(m))">
+                <select v-model="draftSelections[mgrKey(m)][1]" class="pick-select" :disabled="gameState.picksLocked" @change="savePick(m)">
                   <option value="">— Pick 2 —</option>
                   <option v-for="isl in allIslanderNames" :key="isl" :value="isl">{{ isl }}</option>
                 </select>
@@ -143,8 +140,15 @@
               <option value="female">Girl</option>
               <option value="male">Boy</option>
             </select>
-            <button class="btn-pink" :disabled="!bombForm.name.trim()" @click="addBombshell">+ Add Bombshell</button>
+            <label class="file-label">
+              Headshot
+              <input type="file" accept="image/*" @change="onBombPhoto" />
+            </label>
+            <button class="btn-pink" :disabled="!bombForm.name.trim() || bombUploading" @click="addBombshell">
+              {{ bombUploading ? 'Uploading…' : '+ Add Bombshell' }}
+            </button>
           </div>
+          <p v-if="bombError" class="auth-err">{{ bombError }}</p>
           <div v-if="gameState.bombshells.length" class="roster-grid" style="margin-top:12px">
             <div v-for="b in gameState.bombshells" :key="b.name" class="roster-item">
               <div class="roster-swatch bomb-swatch">💣</div>
@@ -266,6 +270,8 @@
 
 <script setup>
 import { ref, reactive, computed, watch } from 'vue'
+import { RouterLink } from 'vue-router'
+import { isGlobalAdmin } from '../store/auth.js'
 import { managers, mgrKey } from '../data/managers.js'
 import { islanders }  from '../data/islanders.js'
 import { positiveEvents, negativeEvents, bonusEvents } from '../data/pointEvents.js'
@@ -277,6 +283,7 @@ import {
   getManagerPicksScore,
   isEliminated,
   setManagerPicks,
+  setPickLock,
   logEvent,
   removeEvent,
   toggleEliminated,
@@ -289,17 +296,14 @@ import {
   resetPicks,
   resetAll,
 } from '../store/game.js'
+import { uploadIslanderPhoto } from '../utils/storage.js'
 
-const ADMIN_PW = 'villa2026'
+const authed = ref(false)
+const pickError = ref('')
+const bombError = ref('')
+const bombUploading = ref(false)
 
-const authed    = ref(false)
-const pwInput   = ref('')
-const authError = ref(false)
-
-function tryAuth() {
-  if (pwInput.value === ADMIN_PW) { authed.value = true; authError.value = false }
-  else { authError.value = true }
-}
+watch(isGlobalAdmin, (v) => { authed.value = v }, { immediate: true })
 
 const tabs = [
   { key: 'picks',    label: '📋 Draft Picks'     },
@@ -318,9 +322,19 @@ managers.forEach(m => {
   while (draftSelections[mgrKey(m)].length < 2) draftSelections[mgrKey(m)].push('')
 })
 
-function savePick(key) {
-  const picks = draftSelections[key].filter(Boolean)
-  setManagerPicks(key, picks)
+function savePick(m) {
+  pickError.value = ''
+  const key = mgrKey(m)
+  try {
+    const picks = draftSelections[key].filter(Boolean)
+    setManagerPicks(key, picks, { league: m.league })
+  } catch (e) {
+    pickError.value = e.message
+  }
+}
+
+function togglePickLock() {
+  setPickLock(!gameState.picksLocked)
 }
 
 const allIslanderNames = computed(() => {
@@ -348,13 +362,30 @@ function submitLog() {
 }
 
 // ── Roster ──
-const bombForm = reactive({ name: '', gender: 'female' })
+const bombForm = reactive({ name: '', gender: 'female', photoFile: null })
 
-function addBombshell() {
+function onBombPhoto(e) {
+  bombForm.photoFile = e.target.files?.[0] ?? null
+}
+
+async function addBombshell() {
   if (!bombForm.name.trim()) return
-  storeAddBombshell(bombForm.name.trim(), null, bombForm.gender)
-  bombForm.name = ''
-  bombForm.gender = 'female'
+  bombError.value = ''
+  bombUploading.value = true
+  try {
+    let photo = ''
+    if (bombForm.photoFile) {
+      photo = await uploadIslanderPhoto(bombForm.photoFile, bombForm.name)
+    }
+    storeAddBombshell(bombForm.name.trim(), null, bombForm.gender, photo)
+    bombForm.name = ''
+    bombForm.gender = 'female'
+    bombForm.photoFile = null
+  } catch (e) {
+    bombError.value = e.message
+  } finally {
+    bombUploading.value = false
+  }
 }
 function removeBombshell(name) { storeRemoveBombshell(name) }
 
@@ -497,6 +528,34 @@ function confirmReset(type) {
   margin-bottom: 24px;
   flex-wrap: wrap;
   gap: 12px;
+}
+.header-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.lock-btn {
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 2px solid var(--pink-light);
+  background: #fff;
+  font-weight: 900;
+  cursor: pointer;
+  color: var(--text-mid);
+}
+.lock-btn.locked { background: #fff3cd; border-color: #ffc107; color: #856404; }
+.lock-notice {
+  background: #fff8e1;
+  border: 2px solid #ffc107;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-weight: 700;
+  color: #856404;
+  margin-bottom: 16px;
+}
+.file-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-weight: 800;
+  font-size: .85rem;
+  color: var(--text-mid);
 }
 
 /* Tabs */

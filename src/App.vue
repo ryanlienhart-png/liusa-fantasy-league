@@ -1,5 +1,5 @@
 <template>
-  <div v-if="!isReady" class="loading-screen">
+  <div v-if="!ready" class="loading-screen">
     <p class="loading-heart">💛</p>
     <p class="loading-text">you've got a text!!</p>
     <p class="loading-sub">Loading Villa League…</p>
@@ -10,15 +10,20 @@
       <RouterView />
     </main>
     <footer class="site-footer">
-      <p>Summer 2026 &nbsp;·&nbsp; Hosted by <strong>Sriniana Badix</strong> &nbsp;·&nbsp; you've got a text!!</p>
+      <p>Summer 2026 &nbsp;·&nbsp; Villa League 2026 &nbsp;·&nbsp; you've got a text!!</p>
     </footer>
   </div>
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import NavBar from './components/NavBar.vue'
 import { RouterView } from 'vue-router'
-import { isReady } from './store/game.js'
+import { authReady } from './store/auth.js'
+import { globalReady } from './store/globalData.js'
+import { isReady as gameReady } from './store/game.js'
+
+const ready = computed(() => authReady.value && globalReady.value && gameReady.value)
 </script>
 
 <style>
@@ -39,9 +44,7 @@ import { isReady } from './store/game.js'
   --shadow:     0 4px 24px rgba(255,27,141,.15);
 }
 
-/* ─── Reset ─── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
 html { scroll-behavior: smooth; }
 
 body {
@@ -60,18 +63,11 @@ body {
 }
 
 h1, h2, h3 { font-family: 'Pacifico', cursive; }
-
 a { text-decoration: none; color: inherit; }
 
-/* ─── Layout ─── */
 .app-shell { display: flex; flex-direction: column; min-height: 100vh; }
+.main-content { flex: 1; padding-top: var(--nav-h); }
 
-.main-content {
-  flex: 1;
-  padding-top: var(--nav-h);
-}
-
-/* ─── Loading screen ─── */
 .loading-screen {
   min-height: 100vh;
   display: flex;
@@ -81,26 +77,14 @@ a { text-decoration: none; color: inherit; }
   gap: 12px;
   text-align: center;
 }
-.loading-heart {
-  font-size: 3rem;
-  animation: pulse 1.2s ease-in-out infinite;
-}
-.loading-text {
-  font-family: 'Pacifico', cursive;
-  font-size: 1.5rem;
-  color: var(--pink);
-}
-.loading-sub {
-  font-weight: 700;
-  color: var(--text-mid);
-  font-size: .95rem;
-}
+.loading-heart { font-size: 3rem; animation: pulse 1.2s ease-in-out infinite; }
+.loading-text { font-family: 'Pacifico', cursive; font-size: 1.5rem; color: var(--pink); }
+.loading-sub { font-weight: 700; color: var(--text-mid); font-size: .95rem; }
 @keyframes pulse {
   0%, 100% { transform: scale(1); }
   50%       { transform: scale(1.2); }
 }
 
-/* ─── Footer ─── */
 .site-footer {
   text-align: center;
   padding: 20px;
@@ -111,12 +95,7 @@ a { text-decoration: none; color: inherit; }
   font-weight: 700;
 }
 
-/* ─── Utility ─── */
-.container {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 0 20px;
-}
+.container { max-width: 1100px; margin: 0 auto; padding: 0 20px; }
 
 .page-title {
   font-family: 'Pacifico', cursive;
@@ -144,7 +123,6 @@ a { text-decoration: none; color: inherit; }
   text-transform: uppercase;
   letter-spacing: .05em;
 }
-
 .pill-active   { background: #d4edda; color: #155724; }
 .pill-out      { background: #f8d7da; color: #721c24; }
 .pill-bombshell{ background: #fff3cd; color: #856404; }

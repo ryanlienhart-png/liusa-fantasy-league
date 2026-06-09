@@ -3,17 +3,26 @@
     <div class="container">
       <h2 class="page-title">the rules</h2>
 
-      <!-- Draft -->
+      <!-- How it works -->
       <section class="rule-card">
-        <h3>The Draft</h3>
+        <h3>How It Works</h3>
         <ul>
-          <li><strong>15 managers</strong> total with a <strong>$5 buy-in</strong>.</li>
-          <li>Round 1 draft: <strong>Monday, June 1st</strong> — closes 1 hour before the season premiere.</li>
-          <li>Round 2 draft: within <strong>24 hours</strong> after the premiere (Tuesday, June 2nd).</li>
-          <li>Each manager drafts <strong>2 "clients"</strong> from the OG islanders.</li>
-          <li>Islanders can be claimed by <strong>max 3 managers</strong>. No two managers share the same 2 islanders.</li>
-          <li>Draft order is randomized (spots 1–15).</li>
-          <li>Round 1: <strong>1 → 15</strong> &nbsp;|&nbsp; Round 2: <strong>15 → 1</strong></li>
+          <li><strong>Sign up</strong> and create an account to become a manager.</li>
+          <li><strong>Create or join</strong> a league with an invite code from your host.</li>
+          <li>Each manager picks <strong>2 islanders</strong> in their league.</li>
+          <li>Your score is the <strong>sum of your islanders' official points</strong>.</li>
+          <li>Official points are set by the <strong>global admin</strong> after each episode — all leagues share the same scores.</li>
+        </ul>
+      </section>
+
+      <!-- Leagues -->
+      <section class="rule-card">
+        <h3>Leagues</h3>
+        <ul>
+          <li>Anyone can <strong>create a league</strong> and become the host.</li>
+          <li>Hosts invite friends with a unique <strong>invite code</strong>.</li>
+          <li>Each league has its own <strong>leaderboard</strong> and managers.</li>
+          <li>Hosts manage their league but <strong>cannot change official islander points</strong>.</li>
         </ul>
       </section>
 
@@ -21,21 +30,9 @@
       <section class="rule-card">
         <h3>💣 Bombshells</h3>
         <ul>
-          <li>New islanders enter throughout the season via <strong>waivers / free agency</strong>.</li>
-          <li>To claim a bombshell you must <strong>drop one current islander</strong>.</li>
-          <li>Waiver priority favors <strong>lower-ranked managers</strong> to keep things competitive.</li>
-          <li>The commissioner will announce when bombshell claims open and close.</li>
-        </ul>
-      </section>
-
-      <!-- Trades -->
-      <section class="rule-card">
-        <h3>Trades</h3>
-        <ul>
-          <li><strong>Connect</strong> with another manager yourself.</li>
-          <li><strong>Agree</strong> on the trade.</li>
-          <li><strong>Send it</strong> to the commissioner for approval/tracking.</li>
-          <li>Trades and waivers <strong>close</strong> once no more bombshells enter and the cast dwindles — from that point, points decide the winner.</li>
+          <li>New islanders enter throughout the season and are added by the <strong>global admin</strong>.</li>
+          <li>Once added, bombshells appear globally and can be picked in any league.</li>
+          <li>You can update your picks anytime to swap in a new islander.</li>
         </ul>
       </section>
 

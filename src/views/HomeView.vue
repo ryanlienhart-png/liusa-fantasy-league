@@ -7,18 +7,20 @@
         <img src="/love-island-logo.png" alt="Love Island USA" class="li-logo-img" />
       </div>
       <h1 class="fantasy-title">Fantasy League</h1>
-      <p class="hosted-by">Hosted by <span>Sriyonce</span></p>
+      <p class="hosted-by">Villa League 2026 — create or join a league</p>
 
       <div class="hero-actions">
         <RouterLink to="/leaderboard" class="btn-primary">View Leaderboard</RouterLink>
-        <RouterLink to="/islanders"   class="btn-secondary">Meet the Islanders</RouterLink>
+        <RouterLink v-if="isSignedIn" to="/leagues" class="btn-secondary">My Leagues</RouterLink>
+        <RouterLink v-else to="/signup" class="btn-secondary">Get Started</RouterLink>
+        <RouterLink to="/islanders" class="btn-secondary">Meet the Islanders</RouterLink>
       </div>
     </section>
     
     <!-- Quick stats -->
     <section class="stats-section container">
       <div class="stat-card">
-        <span class="stat-num">{{ managers.length }}</span>
+        <span class="stat-num">{{ managerCount }}</span>
         <span class="stat-label">Managers</span>
       </div>
       <div class="stat-card">
@@ -26,8 +28,8 @@
         <span class="stat-label">Islanders</span>
       </div>
       <div class="stat-card">
-        <span class="stat-num">${{ prizePool }}</span>
-        <span class="stat-label">Prize Pool</span>
+        <span class="stat-num">{{ seasonName }}</span>
+        <span class="stat-label">Season</span>
       </div>
       <div class="stat-card">
         <span class="stat-num">{{ activeCount }}</span>
@@ -38,20 +40,20 @@
     <!-- At-a-glance info -->
     <section class="info-section container">
       <div class="info-card">
-        <h3>The Draft</h3>
-        <p>Each manager drafts <strong>2 clients</strong> from the OG islanders. Islanders can be claimed by <strong>max 3 managers</strong>.</p>
+        <h3>Pick Your Islanders</h3>
+        <p>Each manager picks <strong>2 islanders</strong> in their league. Official show points are global — every league inherits the same scores.</p>
       </div>
       <div class="info-card">
         <h3>Points</h3>
         <p>Your score is the sum of your two islanders' points. Events range from <strong>+50</strong> (Wins Love Island) to <strong>-30</strong> (major allegation).</p>
       </div>
       <div class="info-card">
-        <h3>Bombshells</h3>
-        <p>New islanders enter mid-season via <strong>waivers</strong>. Claim one by dropping a current client. Lower-ranked managers get priority.</p>
+        <h3>Multiple Leagues</h3>
+        <p>Create your own league or join with an <strong>invite code</strong>. Compete with friends on a private leaderboard.</p>
       </div>
       <div class="info-card">
         <h3>Winner</h3>
-        <p>The manager with the <strong>most points</strong> at the finale takes home the entire <strong>$75 prize pot</strong> + eternal bragging rights.</p>
+        <p>The manager with the <strong>most points</strong> in each league at the finale wins bragging rights — and maybe a prize from your host.</p>
       </div>
     </section>
 
@@ -62,13 +64,15 @@
 
 <script setup>
 import { computed } from 'vue'
-import { islanders } from '../data/islanders.js'
-import { managers, villaManagers } from '../data/managers.js'
+import { isSignedIn } from '../store/auth.js'
+import { globalState } from '../store/globalData.js'
+import { managers } from '../data/managers.js'
 import { gameState } from '../store/game.js'
 
-const islanderCount = computed(() => islanders.length + gameState.bombshells.length)
-const prizePool     = computed(() => villaManagers.length * 5)
-const activeCount   = computed(() =>
+const islanderCount = computed(() => globalState.islanders.length + gameState.bombshells.length)
+const managerCount = computed(() => managers.length)
+const seasonName = computed(() => globalState.seasons[0]?.name ?? '2026')
+const activeCount = computed(() =>
   islanderCount.value - gameState.eliminated.length
 )
 </script>

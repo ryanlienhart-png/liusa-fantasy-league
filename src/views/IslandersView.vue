@@ -88,14 +88,6 @@
                       {{ ev.points > 0 ? '+' : '' }}{{ ev.points }}
                     </td>
                   </tr>
-                  <tr v-if="selectedAdj !== 0" class="row-adj">
-                    <td class="col-ep">—</td>
-                    <td class="col-event">Manual adjustment</td>
-                    <td class="col-note"></td>
-                    <td class="col-pts" :class="selectedAdj > 0 ? 'pts-pos' : 'pts-neg'">
-                      {{ selectedAdj > 0 ? '+' : '' }}{{ selectedAdj }}
-                    </td>
-                  </tr>
                 </tbody>
               </table>
               <div class="modal-total">
@@ -113,8 +105,8 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import IslanderCard from '../components/IslanderCard.vue'
-import { islanders } from '../data/islanders.js'
-import { gameState, getIslanderPoints } from '../store/game.js'
+import { globalState, getIslanderPoints } from '../store/globalData.js'
+import { gameState } from '../store/game.js'
 
 const filters = [
   { key: 'all',        label: 'All' },
@@ -124,36 +116,48 @@ const filters = [
 ]
 const activeFilter = ref('all')
 
-const girls = computed(() => islanders.filter(i => i.gender === 'female'))
-const boys  = computed(() => islanders.filter(i => i.gender === 'male'))
+const girls = computed(() => globalState.islanders.filter(i => i.category === 'girl'))
+const boys  = computed(() => globalState.islanders.filter(i => i.category === 'boy'))
+const bombshellPhotos = { gabriel: '/islanders/gabriel.png', kayda: '/islanders/kayda.jpg' }
 
-const bombshellPhotos = {
-  gabriel: '/islanders/gabriel.png',
-  kayda:   '/islanders/kayda.jpg',
-}
-
-const bombshells = computed(() =>
-  gameState.bombshells.map(b => ({
-    ...b,
-    photo: b.photo || bombshellPhotos[b.name.toLowerCase()] || `/islanders/${b.name.toLowerCase()}.png`,
+const bombshells = computed(() => {
+  const fromGlobal = globalState.islanders.filter(i => i.category === 'bombshell')
+  const fromLegacy = gameState.bombshells.map(b => ({
+    id: b.name,
+    name: b.name,
+    category: 'bombshell',
+    status: 'active',
+    gradient: b.gradient,
+    imageUrl: b.photo || bombshellPhotos[b.name.toLowerCase()] || '',
+    gender: b.gender,
   }))
-)
+  const seen = new Set(fromGlobal.map(i => i.name))
+  return [...fromGlobal, ...fromLegacy.filter(b => !seen.has(b.name))]
+})
 
 const showGirls      = computed(() => ['all','girls'].includes(activeFilter.value))
 const showGuys       = computed(() => ['all','boys'].includes(activeFilter.value))
 const showBombshells = computed(() => ['all','bombshells'].includes(activeFilter.value))
 
-// ── Modal ──
 const selected = ref(null)
 
-const selectedEvents = computed(() =>
-  selected.value ? (gameState.islanderEvents[selected.value.name] ?? []) : []
-)
-const selectedAdj = computed(() =>
-  selected.value ? (gameState.islanderAdjustments[selected.value.name] ?? 0) : 0
-)
+const selectedEvents = computed(() => {
+  if (!selected.value) return []
+  return globalState.pointEvents
+    .filter(e => e.islanderId === selected.value.id)
+    .map(e => {
+      const cat = globalState.scoringCategories.find(c => c.id === e.scoringCategoryId)
+      return {
+        episode: globalState.episodes.find(ep => ep.id === e.episodeId)?.episodeNumber ?? '',
+        label: cat?.name ?? e.description ?? 'Event',
+        note: e.description ?? '',
+        points: e.points,
+      }
+    })
+})
+
 const selectedTotal = computed(() =>
-  selected.value ? getIslanderPoints(selected.value.name) : 0
+  selected.value ? getIslanderPoints(selected.value.id) : 0
 )
 
 function openModal(islander) {

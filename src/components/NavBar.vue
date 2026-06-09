@@ -11,7 +11,16 @@
         <RouterLink to="/managers"    @click="menuOpen=false">Managers</RouterLink>
         <RouterLink to="/leaderboard" @click="menuOpen=false">Leaderboard</RouterLink>
         <RouterLink to="/rules"       @click="menuOpen=false">Rules</RouterLink>
-        <RouterLink to="/admin"       @click="menuOpen=false" class="admin-link">Admin</RouterLink>
+        <RouterLink v-if="isSignedIn" to="/leagues" @click="menuOpen=false">My Leagues</RouterLink>
+        <RouterLink v-if="isGlobalAdmin" to="/admin" @click="menuOpen=false" class="admin-link">Admin</RouterLink>
+        <template v-if="isSignedIn">
+          <span class="nav-user">{{ userProfile?.name }}</span>
+          <button class="nav-btn" @click="handleLogout">Log Out</button>
+        </template>
+        <template v-else>
+          <RouterLink to="/login"  @click="menuOpen=false">Log In</RouterLink>
+          <RouterLink to="/signup" @click="menuOpen=false" class="signup-link">Sign Up</RouterLink>
+        </template>
       </div>
 
       <button class="hamburger" @click="menuOpen = !menuOpen" aria-label="Toggle menu">
@@ -23,7 +32,17 @@
 
 <script setup>
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { isSignedIn, isGlobalAdmin, userProfile, logOut } from '../store/auth.js'
+
 const menuOpen = ref(false)
+const router = useRouter()
+
+async function handleLogout() {
+  menuOpen.value = false
+  await logOut()
+  router.push('/')
+}
 </script>
 
 <style scoped>
@@ -45,7 +64,6 @@ const menuOpen = ref(false)
   justify-content: space-between;
 }
 
-/* Brand */
 .brand {
   display: flex;
   align-items: center;
@@ -56,14 +74,13 @@ const menuOpen = ref(false)
 }
 .brand-heart { font-size: 1.4rem; }
 
-/* Links */
 .nav-links {
   display: flex;
   gap: 6px;
   align-items: center;
 }
 
-.nav-links a {
+.nav-links a, .nav-btn {
   padding: 7px 14px;
   border-radius: 999px;
   font-weight: 800;
@@ -80,11 +97,24 @@ const menuOpen = ref(false)
   background: var(--pink) !important;
   color: #fff !important;
 }
-.admin-link:hover {
-  background: var(--pink-dark) !important;
+.signup-link {
+  background: var(--pink-pale);
+  color: var(--pink) !important;
 }
+.nav-user {
+  font-size: .85rem;
+  font-weight: 800;
+  color: var(--text-mid);
+  padding: 0 6px;
+}
+.nav-btn {
+  background: none;
+  border: 2px solid var(--pink-light);
+  cursor: pointer;
+  font: inherit;
+}
+.nav-btn:hover { background: var(--pink-pale); color: var(--pink); }
 
-/* Hamburger */
 .hamburger {
   display: none;
   flex-direction: column;
@@ -102,7 +132,7 @@ const menuOpen = ref(false)
   border-radius: 2px;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   .hamburger { display: flex; }
   .nav-links {
     display: none;
@@ -117,6 +147,6 @@ const menuOpen = ref(false)
     box-shadow: 0 8px 24px rgba(255,27,141,.12);
   }
   .nav-links.open { display: flex; }
-  .nav-links a { text-align: center; border-radius: 12px; }
+  .nav-links a, .nav-btn { text-align: center; border-radius: 12px; width: 100%; }
 }
 </style>

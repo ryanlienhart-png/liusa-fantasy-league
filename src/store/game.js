@@ -1,10 +1,12 @@
 import { reactive, ref } from 'vue'
-import { db } from '../firebase.js'
+import { db, isFirebaseConfigured } from '../firebase.js'
 import { doc, onSnapshot, setDoc } from 'firebase/firestore'
 import { allEvents } from '../data/pointEvents.js'
+import { managers } from '../data/managers.js'
+import { validatePick } from '../utils/pickValidation.js'
 
-const STATE_DOC   = doc(db, 'league', 'gameState')
-const COUPLES_DOC = doc(db, 'league', 'couples')   // isolated so main persist() can never wipe it
+const STATE_DOC   = db ? doc(db, 'league', 'gameState') : null
+const COUPLES_DOC = db ? doc(db, 'league', 'couples') : null   // isolated so main persist() can never wipe it
 
 function defaultState() {
   return {
@@ -16,6 +18,7 @@ function defaultState() {
     bombshells:          [],
     islanderAdjustments: {},
     managerAdjustments:  {},
+    picksLocked:         false,
   }
 }
 
@@ -41,6 +44,7 @@ function plain(val) {
 }
 
 function persist() {
+  if (!db || !STATE_DOC) return Promise.resolve()
   return setDoc(STATE_DOC, plain({
     managerPicks:        gameState.managerPicks,
     pickBaselines:       gameState.pickBaselines,
@@ -50,20 +54,39 @@ function persist() {
     bombshells:          gameState.bombshells,
     islanderAdjustments: gameState.islanderAdjustments,
     managerAdjustments:  gameState.managerAdjustments,
+    picksLocked:         gameState.picksLocked,
   }))
 }
 
 function persistCouples() {
+  if (!db || !COUPLES_DOC) return Promise.resolve()
   return setDoc(COUPLES_DOC, { pairs: plain(gameState.couples) })
 }
 
 export function initStore() {
+  if (!isFirebaseConfigured || !db) {
+    console.warn(
+      'Firebase is not configured. Add a .env file with VITE_FIREBASE_* values for live league sync.'
+    )
+    isReady.value = true
+    return Promise.resolve()
+  }
+
   return new Promise((resolve) => {
     let stateReady   = false
     let couplesReady = false
 
+    const timeout = setTimeout(() => {
+      if (!isReady.value) {
+        console.warn('Firestore timed out — loading with local defaults.')
+        isReady.value = true
+        resolve()
+      }
+    }, 10_000)
+
     function tryResolve() {
       if (stateReady && couplesReady && !isReady.value) {
+        clearTimeout(timeout)
         isReady.value = true
         resolve()
       }
@@ -82,6 +105,7 @@ export function initStore() {
           bombshells:          data.bombshells          ?? [],
           islanderAdjustments: data.islanderAdjustments ?? {},
           managerAdjustments:  data.managerAdjustments  ?? {},
+          picksLocked:         data.picksLocked         ?? false,
         })
         if (!stateReady) { stateReady = true; tryResolve() }
       },
@@ -150,7 +174,32 @@ export function setAdjustments(islanderMap, managerMap) {
 
 // ── Mutations ─────────────────────────────────────────────
 
-export function setManagerPicks(managerName, newPicks) {
+export function setPickLock(locked) {
+  gameState.picksLocked = locked
+  persist()
+}
+
+export function setManagerPicks(managerName, newPicks, { league = 'villa' } = {}) {
+  if (gameState.picksLocked) {
+    throw new Error('Picks are locked. Tap Unlock Picks in Commissioner Tools to make changes.')
+  }
+
+  const leagueManagers = managers.filter(m => m.league === league)
+  const picksByMember = {}
+  for (const m of leagueManagers) {
+    const key = m.storeKey ?? m.name
+    picksByMember[key] = gameState.managerPicks[key] ?? []
+  }
+
+  const err = validatePick({
+    picksByMember,
+    memberKey: managerName,
+    newIds: newPicks,
+    memberCount: leagueManagers.length,
+    islanderName: (id) => id,
+  })
+  if (err) throw new Error(err)
+
   const oldPicks = gameState.managerPicks[managerName] ?? []
 
   if (!gameState.pickBaselines[managerName]) gameState.pickBaselines[managerName] = {}
@@ -206,11 +255,12 @@ export function toggleEliminated(name) {
   persist()
 }
 
-export function addBombshell(name, gradient, gender = 'female') {
+export function addBombshell(name, gradient, gender = 'female', photo = '') {
   if (!gameState.bombshells.find(b => b.name === name)) {
     gameState.bombshells.push({
       name,
       gender,
+      photo,
       gradient: gradient || 'linear-gradient(135deg, #FF1B8D, #FF8C00)',
     })
     persist()
