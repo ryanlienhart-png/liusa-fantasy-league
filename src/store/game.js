@@ -3,8 +3,9 @@ import { db } from '../firebase.js'
 import { doc, onSnapshot, setDoc } from 'firebase/firestore'
 import { allEvents } from '../data/pointEvents.js'
 
-const STATE_DOC   = doc(db, 'league', 'gameState')
-const COUPLES_DOC = doc(db, 'league', 'couples')   // isolated so main persist() can never wipe it
+const STATE_DOC      = doc(db, 'league', 'gameState')
+const COUPLES_DOC    = doc(db, 'league', 'couples')    // isolated so main persist() can never wipe it
+const BOMBSHELLS_DOC = doc(db, 'league', 'bombshells') // isolated so main persist() can never wipe it
 
 function defaultState() {
   return {
@@ -13,13 +14,12 @@ function defaultState() {
     managerBanked:       {},
     islanderEvents:      {},
     eliminated:          [],
-    bombshells:          [],
     islanderAdjustments: {},
     managerAdjustments:  {},
   }
 }
 
-export const gameState = reactive({ ...defaultState(), couples: [] })
+export const gameState = reactive({ ...defaultState(), couples: [], bombshells: [] })
 export const isReady   = ref(false)
 
 // Accepts both old object format { A: B, B: A } and new array format [{ a, b }]
@@ -47,7 +47,6 @@ function persist() {
     managerBanked:       gameState.managerBanked,
     islanderEvents:      gameState.islanderEvents,
     eliminated:          gameState.eliminated,
-    bombshells:          gameState.bombshells,
     islanderAdjustments: gameState.islanderAdjustments,
     managerAdjustments:  gameState.managerAdjustments,
   }))
@@ -57,13 +56,18 @@ function persistCouples() {
   return setDoc(COUPLES_DOC, { pairs: plain(gameState.couples) })
 }
 
+function persistBombshells() {
+  return setDoc(BOMBSHELLS_DOC, { list: plain(gameState.bombshells) })
+}
+
 export function initStore() {
   return new Promise((resolve) => {
-    let stateReady   = false
-    let couplesReady = false
+    let stateReady     = false
+    let couplesReady   = false
+    let bombshellsReady = false
 
     function tryResolve() {
-      if (stateReady && couplesReady && !isReady.value) {
+      if (stateReady && couplesReady && bombshellsReady && !isReady.value) {
         isReady.value = true
         resolve()
       }
@@ -79,7 +83,6 @@ export function initStore() {
           managerBanked:       data.managerBanked       ?? {},
           islanderEvents:      data.islanderEvents      ?? {},
           eliminated:          data.eliminated          ?? [],
-          bombshells:          data.bombshells          ?? [],
           islanderAdjustments: data.islanderAdjustments ?? {},
           managerAdjustments:  data.managerAdjustments  ?? {},
         })
@@ -102,6 +105,20 @@ export function initStore() {
       (err) => {
         console.error('Firestore couples error:', err)
         couplesReady = true
+        tryResolve()
+      }
+    )
+
+    onSnapshot(
+      BOMBSHELLS_DOC,
+      (snap) => {
+        const data = snap.exists() ? snap.data() : {}
+        gameState.bombshells = data.list ?? []
+        if (!bombshellsReady) { bombshellsReady = true; tryResolve() }
+      },
+      (err) => {
+        console.error('Firestore bombshells error:', err)
+        bombshellsReady = true
         tryResolve()
       }
     )
@@ -215,7 +232,7 @@ export function addBombshell(name, gradient, gender = 'female', photo = null) {
     }
     if (photo) entry.photo = photo
     gameState.bombshells.push(entry)
-    persist()
+    persistBombshells()
   }
 }
 
@@ -223,7 +240,7 @@ export function removeBombshell(name) {
   const idx = gameState.bombshells.findIndex(b => b.name === name)
   if (idx !== -1) {
     gameState.bombshells.splice(idx, 1)
-    persist()
+    persistBombshells()
   }
 }
 
@@ -258,7 +275,9 @@ export function resetPicks() {
 
 export function resetAll() {
   Object.assign(gameState, defaultState())
-  gameState.couples = []
+  gameState.couples    = []
+  gameState.bombshells = []
   persist()
   persistCouples()
+  persistBombshells()
 }
