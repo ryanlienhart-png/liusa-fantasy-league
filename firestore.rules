@@ -1,0 +1,91 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isGlobalAdmin() {
+      return isSignedIn()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'global_admin';
+    }
+
+    function isLeagueHost(leagueId) {
+      return isSignedIn()
+        && get(/databases/$(database)/documents/leagues/$(leagueId)).data.hostUserId == request.auth.uid;
+    }
+
+    function isLeagueMember(leagueId) {
+      return isSignedIn() && exists(/databases/$(database)/documents/league_members/$(request.auth.uid + '_' + leagueId))
+        || isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    function leaguePicksUnlocked(leagueId) {
+      return exists(/databases/$(database)/documents/leagues/$(leagueId))
+        && get(/databases/$(database)/documents/leagues/$(leagueId)).data.get('picksLocked', false) != true;
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isSignedIn() && (request.auth.uid == userId || isGlobalAdmin());
+    }
+
+    match /seasons/{seasonId} {
+      allow read: if true;
+      allow write: if isGlobalAdmin();
+    }
+
+    match /islanders/{islanderId} {
+      allow read: if true;
+      allow write: if isGlobalAdmin();
+    }
+
+    match /scoring_categories/{categoryId} {
+      allow read: if true;
+      allow write: if isGlobalAdmin();
+    }
+
+    match /episodes/{episodeId} {
+      allow read: if true;
+      allow write: if isGlobalAdmin();
+    }
+
+    match /point_events/{eventId} {
+      allow read: if true;
+      allow write: if isGlobalAdmin();
+    }
+
+    match /leagues/{leagueId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isLeagueHost(leagueId) || isGlobalAdmin();
+      allow delete: if isGlobalAdmin();
+    }
+
+    match /league_members/{memberId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow delete: if isSignedIn()
+        && (resource.data.userId == request.auth.uid
+            || isLeagueHost(resource.data.leagueId)
+            || isGlobalAdmin());
+      allow update: if isGlobalAdmin();
+    }
+
+    match /league/{document} {
+      allow read: if true;
+      allow write: if isGlobalAdmin();
+    }
+
+    match /manager_picks/{pickId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && leaguePicksUnlocked(request.resource.data.leagueId);
+      allow delete: if isSignedIn()
+        && (resource.data.userId == request.auth.uid || isGlobalAdmin());
+    }
+  }
+}

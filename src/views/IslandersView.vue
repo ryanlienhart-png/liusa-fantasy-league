@@ -88,14 +88,6 @@
                       {{ ev.points > 0 ? '+' : '' }}{{ ev.points }}
                     </td>
                   </tr>
-                  <tr v-if="selectedAdj !== 0" class="row-adj">
-                    <td class="col-ep">—</td>
-                    <td class="col-event">Manual adjustment</td>
-                    <td class="col-note"></td>
-                    <td class="col-pts" :class="selectedAdj > 0 ? 'pts-pos' : 'pts-neg'">
-                      {{ selectedAdj > 0 ? '+' : '' }}{{ selectedAdj }}
-                    </td>
-                  </tr>
                 </tbody>
               </table>
               <div class="modal-total">
@@ -147,7 +139,6 @@ const showGirls      = computed(() => ['all','girls'].includes(activeFilter.valu
 const showGuys       = computed(() => ['all','boys'].includes(activeFilter.value))
 const showBombshells = computed(() => ['all','bombshells'].includes(activeFilter.value))
 
-// ── Modal ──
 const selected = ref(null)
 
 const selectedEvents = computed(() =>
