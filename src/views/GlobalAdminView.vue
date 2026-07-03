@@ -41,7 +41,7 @@
             <span class="pill" :class="i.status === 'active' ? 'pill-active' : 'pill-out'">{{ i.status }}</span>
             <span class="pts">{{ getIslanderPoints(i.id) }} pts</span>
             <button v-if="i.status === 'active'" class="btn-sm" @click="dump(i)">Mark Dumped</button>
-            <button v-else class="btn-sm" @click="restore(i)">Restore</button>
+            <button v-else class="btn-sm" @click="restore(i)">Restore Dumped</button>
           </div>
         </div>
       </section>

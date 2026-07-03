@@ -38,7 +38,14 @@ const initials = computed(() =>
   props.islander.name.split(' ').map(w => w[0]).join('').toUpperCase()
 )
 const points = computed(() => getIslanderPoints(props.islander.name))
-const elim = computed(() => isEliminated(props.islander.name))
+const elim = computed(() => {
+  // Check if islander has a status field (from Firestore)
+  if (props.islander.status !== undefined) {
+    return props.islander.status === 'dumped'
+  }
+  // Fallback to checking eliminated array for bombshells
+  return isEliminated(props.islander.name)
+})
 const categoryLabel = computed(() => {
   const cat = props.islander.category
   if (cat === 'girl') return '♀ Girl'

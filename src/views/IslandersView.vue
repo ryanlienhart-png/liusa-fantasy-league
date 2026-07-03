@@ -105,8 +105,8 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import IslanderCard from '../components/IslanderCard.vue'
-import { islanders } from '../data/islanders.js'
 import { gameState, getIslanderPoints } from '../store/game.js'
+import { globalState } from '../store/globalData.js'
 
 const filters = [
   { key: 'all',        label: 'All' },
@@ -116,8 +116,8 @@ const filters = [
 ]
 const activeFilter = ref('all')
 
-const girls = computed(() => islanders.filter(i => i.gender === 'female'))
-const boys  = computed(() => islanders.filter(i => i.gender === 'male'))
+const girls = computed(() => globalState.islanders.filter(i => i.category === 'girl'))
+const boys  = computed(() => globalState.islanders.filter(i => i.category === 'boy'))
 
 const bombshellPhotos = {
   gabriel: '/islanders/gabriel.png',

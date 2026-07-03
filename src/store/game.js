@@ -1,9 +1,10 @@
 import { reactive, ref } from 'vue'
 import { db, isFirebaseConfigured } from '../firebase.js'
-import { doc, onSnapshot, setDoc } from 'firebase/firestore'
+import { doc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore'
 import { allEvents } from '../data/pointEvents.js'
 import { managers } from '../data/managers.js'
 import { validatePick } from '../utils/pickValidation.js'
+import { globalState } from './globalData.js'
 
 const STATE_DOC      = db ? doc(db, 'league', 'gameState')  : null
 const COUPLES_DOC    = db ? doc(db, 'league', 'couples')    : null
@@ -266,10 +267,23 @@ export function removeEvent(islanderName, index) {
   }
 }
 
-export function toggleEliminated(name) {
+export async function toggleEliminated(name) {
   const idx = gameState.eliminated.indexOf(name)
   if (idx === -1) gameState.eliminated.push(name)
   else gameState.eliminated.splice(idx, 1)
+  
+  // Also update Firestore status for the islander
+  const islander = globalState.islanders.find(i => i.name === name)
+  if (islander && db) {
+    try {
+      await updateDoc(doc(db, 'islanders', islander.id), {
+        status: gameState.eliminated.includes(name) ? 'dumped' : 'active'
+      })
+    } catch (err) {
+      console.error('Failed to update islander status in Firestore:', err)
+    }
+  }
+  
   persist()
 }
 
@@ -279,6 +293,7 @@ export function addBombshell(name, gradient, gender = 'female', photo = null) {
       name,
       gender,
       photo,
+      status: 'active',
       gradient: gradient || 'linear-gradient(135deg, #FF1B8D, #FF8C00)',
     }
     if (photo) entry.photo = photo
@@ -287,10 +302,10 @@ export function addBombshell(name, gradient, gender = 'female', photo = null) {
   }
 }
 
-export function removeBombshell(name) {
-  const idx = gameState.bombshells.findIndex(b => b.name === name)
-  if (idx !== -1) {
-    gameState.bombshells.splice(idx, 1)
+export function toggleBombshellStatus(name) {
+  const bombshell = gameState.bombshells.find(b => b.name === name)
+  if (bombshell) {
+    bombshell.status = bombshell.status === 'active' ? 'dumped' : 'active'
     persistBombshells()
   }
 }

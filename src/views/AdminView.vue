@@ -128,7 +128,7 @@
                 :class="isEliminated(isl.name) ? 'btn-restore' : 'btn-elim'"
                 @click="toggleEliminated(isl.name)"
               >
-                {{ isEliminated(isl.name) ? 'Restore' : 'Eliminate' }}
+                {{ isEliminated(isl.name) ? 'Restore Dumped' : 'Mark Dumped' }}
               </button>
             </div>
           </div>
@@ -154,7 +154,13 @@
               <div class="roster-swatch bomb-swatch">💣</div>
               <span class="roster-name">{{ b.name }}</span>
               <span class="roster-pts">{{ getIslanderPoints(b.name) }} pts</span>
-              <button class="toggle-elim-btn btn-elim" @click="removeBombshell(b.name)">Remove</button>
+              <button
+                class="toggle-elim-btn"
+                :class="(b.status === 'dumped') ? 'btn-restore' : 'btn-elim'"
+                @click="toggleBombshellStatus(b.name)"
+              >
+                {{ (b.status === 'dumped') ? 'Restore Dumped' : 'Mark Dumped' }}
+              </button>
             </div>
           </div>
           <p v-else class="empty-msg">No bombshells yet.</p>
@@ -288,7 +294,7 @@ import {
   removeEvent,
   toggleEliminated,
   addBombshell as storeAddBombshell,
-  removeBombshell as storeRemoveBombshell,
+  toggleBombshellStatus,
   setAdjustments,
   setCouple,
   removeCouple,
@@ -404,7 +410,6 @@ async function addBombshell() {
     bombUploading.value = false
   }
 }
-function removeBombshell(name) { storeRemoveBombshell(name) }
 
 // ── Couples ──
 const coupleForm = reactive({ a: '', b: '' })
